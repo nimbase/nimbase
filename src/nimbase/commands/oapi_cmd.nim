@@ -111,7 +111,10 @@ proc oapiGenCommand*(v: Values) =
       skipPrefixPath = skipPrefixPath
     )
 
-    pkg.id = derivePkgId(pkg)
+    let outputName = outputDir.extractFilename
+    pkg.id =
+      if outputName.len > 0: outputName
+      else: derivePkgId(pkg)
 
     if pkg.author.len == 0:
       let (gitName, _) = execCmdEx("git config user.name")

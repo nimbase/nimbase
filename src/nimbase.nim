@@ -1,7 +1,6 @@
-# Nimbase - A CLI for generating C wrappers, OAPI 3.x HTTP clients
-# native extensions for other programming languages and more
+# Nimbase - Code Generator. OAPI 3.x clients, wrappers from C/C++, FFI bindings & native extensions
 #
-# (c) 2026 George Lemon | LGPLv3 License
+# (c) 2026 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
 #          https://github.com/nimbase/nimbase
 

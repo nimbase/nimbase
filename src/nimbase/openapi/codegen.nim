@@ -1,8 +1,8 @@
-# Clue - A cool toolkit for Nim developers
+# Nimbase - Code Generator. OAPI 3.x clients, wrappers from C/C++, FFI bindings & native extensions
 #
-# (c) 2026 George Lemon | LGPLv3 License
+# (c) 2026 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/clue
+#          https://github.com/nimbase/nimbase
 
 import std/[tables, json, strformat, strutils, os, times, sequtils, wordwrap, sets]
 import pkg/openparser/json as openjson
@@ -784,8 +784,15 @@ proc serverIdent(description, url: string): string =
 
 proc genServers*(servers: seq[Server]): string =
   result = "const\n"
+  var used = initHashSet[string]()
   for i, srv in servers:
-    let name = "server" & serverIdent(srv.description, srv.url)
+    let base = "server" & serverIdent(srv.description, srv.url)
+    var name = base
+    var n = 2
+    while name in used:
+      name = base & $n
+      inc n
+    used.incl(name)
     result &= &"  {name}* = \"{srv.url}\"\n"
 
 proc stripModulePrefix(name: string; prefix: string): string =

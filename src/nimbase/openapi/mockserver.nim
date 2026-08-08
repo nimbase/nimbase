@@ -1,8 +1,8 @@
-# Clue - A cool toolkit for Nim developers
+# Nimbase - Code Generator. OAPI 3.x clients, wrappers from C/C++, FFI bindings & native extensions
 #
-# (c) 2026 George Lemon | LGPLv3 License
+# (c) 2026 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/clue
+#          https://github.com/nimbase/nimbase
 
 ## Local mock server for OpenAPI 3.x specifications.
 ##

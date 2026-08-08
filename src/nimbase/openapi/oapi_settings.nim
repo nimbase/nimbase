@@ -9,6 +9,7 @@ type
     stripPrefixModule*: string
 
   OApiSettings* = object
+    description*: string
     prefilters*: PreFilters
 
 proc parseOApiSettings*(yamlContent: string): OApiSettings =
@@ -16,6 +17,7 @@ proc parseOApiSettings*(yamlContent: string): OApiSettings =
 
 proc dumpDefaultSettings*(): YAML =
   let root = %*{
+    "description": "",
     "prefilters": {
       "routePrefix": "",
       "stripPrefixModule": ""

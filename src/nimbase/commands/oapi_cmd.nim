@@ -67,6 +67,35 @@ proc loadOpenApiSpec(specpath: string): openjson.JsonNode =
   else:
     displayError("Spec file not found: " & specpath)
 
+proc shortDescription(desc: string): string =
+  ## A short, single-line package description from the spec's `info.description`
+  ## (first non-heading sentence, markdown stripped, capped), falling back to a
+  ## generic label.
+  if desc.len == 0:
+    return "Awesome Nim client"
+  for line in desc.split('\n'):
+    let stripped = line.strip
+    if stripped.len == 0 or stripped.startsWith("#"):
+      continue
+    result = stripped
+    break
+  if result.len == 0:
+    return "Awesome Nim client"
+  result = result.replace("`", "").replace("**", "")
+  let period = result.find(". ")
+  if period > 0:
+    result = result[0 ..< period + 1]
+  if result.len > 80:
+    let cut = result[0 ..< 80]
+    let space = cut.rfind(' ')
+    if space > 40:
+      result = cut[0 ..< space] & "..."
+    else:
+      result = cut & "..."
+  result = result.strip
+  if result.len == 0:
+    result = "Awesome Nim client"
+
 proc generateClient(v: Values; specpath, outputDir: string) =
   ## Shared flow for `oapi.gen` and `oapi.gurugen`: resolve settings, load the
   ## spec, run prescripts/postscripts and emit the client package.
@@ -82,6 +111,7 @@ proc generateClient(v: Values; specpath, outputDir: string) =
 
   var skipPrefixPath = ""
   var stripPrefixModule = ""
+  var configDescription = ""
   var configPath = ""
   if v.has("--config"):
     configPath = v.get("--config").getStr
@@ -93,6 +123,7 @@ proc generateClient(v: Values; specpath, outputDir: string) =
       let settings = parseOApiSettings(configContent)
       skipPrefixPath = settings.prefilters.routePrefix
       stripPrefixModule = settings.prefilters.stripPrefixModule
+      configDescription = settings.description
     except CatchableError as e:
       displayWarning("Failed to parse config, using defaults: " & e.msg)
 
@@ -119,6 +150,10 @@ proc generateClient(v: Values; specpath, outputDir: string) =
       ),
       skipPrefixPath = skipPrefixPath
     )
+
+    pkg.description = shortDescription(pkg.oapi.info.description)
+    if configDescription.len > 0:
+      pkg.description = configDescription
 
     let outputName = outputDir.extractFilename
     pkg.id =

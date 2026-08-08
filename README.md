@@ -49,6 +49,7 @@ Generator settings live in `nimbase.oapi.config.yaml` (auto-loaded from the
 current directory unless `--config` is given):
 
 ```yaml
+description: ""                # override the package description (default: spec info.description)
 prefilters:
   routePrefix: ""              # strip a leading path prefix from endpoint idents
   stripPrefixModule: ""        # strip a common prefix from generated module names

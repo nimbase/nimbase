@@ -2,7 +2,7 @@
 
 {nimbase_pkg_desc}
 
-## Installation
+{nimbase_pkg_url}## Installation
 
 ```bash
 nimble install {nimbase_pkg_name}
@@ -23,4 +23,4 @@ waitFor main()
 
 ## License
 
-{nimbase_pkg_license}
+{nimbase_pkg_license}{nimbase_pkg_license_url}

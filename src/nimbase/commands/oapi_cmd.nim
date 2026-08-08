@@ -5,6 +5,7 @@
 #          https://github.com/nimbase/nimbase
 
 import std/[os, osproc, strutils, httpclient, algorithm]
+import std/options
 import std/editdistance
 
 import pkg/kapsis/runtime
@@ -109,9 +110,7 @@ proc generateClient(v: Values; specpath, outputDir: string) =
         return
       removeDir(outputDir)
 
-  var skipPrefixPath = ""
-  var stripPrefixModule = ""
-  var configDescription = ""
+  var settings = OApiSettings()
   var configPath = ""
   if v.has("--config"):
     configPath = v.get("--config").getStr
@@ -120,10 +119,7 @@ proc generateClient(v: Values; specpath, outputDir: string) =
   if configPath.len > 0 and fileExists(configPath):
     let configContent = readFile(configPath)
     try:
-      let settings = parseOApiSettings(configContent)
-      skipPrefixPath = settings.prefilters.routePrefix
-      stripPrefixModule = settings.prefilters.stripPrefixModule
-      configDescription = settings.description
+      settings = parseOApiSettings(configContent)
     except CatchableError as e:
       displayWarning("Failed to parse config, using defaults: " & e.msg)
 
@@ -136,35 +132,50 @@ proc generateClient(v: Values; specpath, outputDir: string) =
 
   try:
     var pkg = Package(
-      id: "",
-      description: "Awesome Nim client",
-      author: "",
-      license: "MIT",
+      id: settings.id,
+      description: settings.description,
+      author: settings.author,
+      license: settings.license,
+      licenseUrl: settings.licenseUrl,
+      url: settings.url,
     )
+    if pkg.license.len == 0:
+      pkg.license = "MIT"
+    if pkg.description.len == 0:
+      pkg.description = "Awesome Nim client"
 
     pkg.parseSpecification(
       root,
       prefs = PackagePreferences(
-        verbose: false,
-        skipComponentSchemas: v.has("--skipComponentSchemas")
+        verbose: settings.verbose.get(false),
+        skipComponentSchemas: v.has("--skipComponentSchemas") or
+          settings.skipComponentSchemas.get(false)
       ),
-      skipPrefixPath = skipPrefixPath
+      skipPrefixPath = settings.prefilters.routePrefix
     )
 
     pkg.description = shortDescription(pkg.oapi.info.description)
-    if configDescription.len > 0:
-      pkg.description = configDescription
+    if settings.description.len > 0:
+      pkg.description = settings.description
 
     let outputName = outputDir.extractFilename
-    pkg.id =
-      if outputName.len > 0: outputName
-      else: derivePkgId(pkg)
+    if settings.id.len == 0:
+      pkg.id =
+        if outputName.len > 0: outputName
+        else: derivePkgId(pkg)
 
     if pkg.author.len == 0:
       let (gitName, _) = execCmdEx("git config user.name")
       pkg.author = gitName.strip()
 
-    let gen = newGenerator(pkg, outputDir, skipPrefixPath, root, stripPrefixModule)
+    if settings.version.len > 0:
+      pkg.openApiVersion = settings.version
+
+    let gen = newGenerator(pkg, outputDir,
+      settings.prefilters.routePrefix, root, settings.prefilters.stripPrefixModule)
+    gen.generateTests = settings.generateTests.get(true)
+    if settings.baseUri.len > 0:
+      gen.baseUri = settings.baseUri
     gen.generate()
 
     # postscripts run after generation

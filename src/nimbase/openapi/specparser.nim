@@ -29,7 +29,7 @@ type
     description*: string
 
   Package* = ref object
-    id*, author*, description*, license*, url*, outputPath*: string
+    id*, author*, description*, license*, licenseUrl*, url*, outputPath*: string
     version*: semver.Version
     openApiVersion*: string
     oapi*: OpenApi

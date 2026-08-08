@@ -53,6 +53,7 @@ type
     oauthAuthUrl*: string
     skipPrefixPath*: string
     stripPrefixModule*: string
+    generateTests*: bool = true
     spec*: openjson.JsonNode
 
 proc toPascalCase(s: string): string =
@@ -1203,6 +1204,8 @@ proc generate*(gen: Generator) =
     "nimbase_pkg_generation_time": gen.genTime,
     "nimbase_pkg_license": gen.pkg.license,
     "nimbase_pkg_desc": gen.pkg.description,
+    "nimbase_pkg_url": (if gen.pkg.url.len > 0: gen.pkg.url & "\n" else: ""),
+    "nimbase_pkg_license_url": (if gen.pkg.licenseUrl.len > 0: " - " & gen.pkg.licenseUrl else: ""),
     "nimbase_base_uri": serverUrl,
     "nimbase_oauth_token_url": gen.oauthTokenUrl,
     "nimbase_oauth_auth_url": gen.oauthAuthUrl,
@@ -1241,7 +1244,7 @@ proc generate*(gen: Generator) =
       let endpointCode = fillTemplate(genEndpointFile(tag, ops, gen.schemas, typeNames, gen.pkgIdent, gen.skipPrefixPath, gen.stripPrefixModule), vars)
       writeFile(srcPkgDir / fileName, endpointCode)
 
-    if not gen.spec.isNil:
+    if gen.generateTests and not gen.spec.isNil:
       let testsDir = gen.outputDir / "tests"
       ensureDir(testsDir)
       writeFile(testsDir / "config.nims", "switch(\"path\", \"$projectDir/../src\")\n")

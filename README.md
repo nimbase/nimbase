@@ -50,6 +50,16 @@ current directory unless `--config` is given):
 
 ```yaml
 description: ""                # override the package description (default: spec info.description)
+author: ""                     # package author (default: `git config user.name`)
+license: "MIT"                 # package license (default: MIT)
+licenseUrl: ""                 # license link shown in the generated README
+url: ""                        # package homepage/repo URL shown in the generated README
+version: ""                    # override the generated package version (default: the OpenAPI version)
+id: ""                         # override the package/module name (default: output dir basename)
+baseUri: ""                    # override the default client base URL (default: spec's first server)
+skipComponentSchemas: false    # skip generating component schemas (same as --skipComponentSchemas)
+verbose: false                 # verbose generation output
+generateTests: true            # generate the tests/ suite (mock server + per-module tests)
 prefilters:
   routePrefix: ""              # strip a leading path prefix from endpoint idents
   stripPrefixModule: ""        # strip a common prefix from generated module names

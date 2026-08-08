@@ -15,7 +15,7 @@ installDirs = @["nimbase"]
 
 requires "nim >= 2.2.10"
 requires "semver >= 1.2.3"
-requires "kapsis >= 0.3.4"
+requires "kapsis >= 0.4.0"
 requires "boogie >= 0.1.0"
-requires "openparser >= 0.1.4"
+requires "openparser >= 0.1.9"
 requires "sweetsyntax >= 0.1.0"

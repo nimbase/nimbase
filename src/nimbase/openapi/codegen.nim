@@ -52,6 +52,7 @@ type
     oauthTokenUrl*: string
     oauthAuthUrl*: string
     skipPrefixPath*: string
+    stripPrefixModule*: string
     spec*: openjson.JsonNode
 
 proc toPascalCase(s: string): string =
@@ -159,7 +160,8 @@ proc toModuleName(tag: string): string =
   if result.len == 0 or result[0].isDigit:
     result = "_" & result
 
-proc genEndpoint*(path: string, skipPrefixPath: sink string = ""): tuple[ident, module, endpoint: string] =
+proc genEndpoint*(path: string, skipPrefixPath: sink string = "";
+    stripPrefixModule: sink string = ""): tuple[ident, module, endpoint: string] =
   var i = 0
   while i <= path.high:
     case path[i]
@@ -191,6 +193,17 @@ proc genEndpoint*(path: string, skipPrefixPath: sink string = ""): tuple[ident, 
   if skipPrefixPath.len > 0 and result.ident.startsWith(skipPrefixPath):
     result.ident = result.ident[skipPrefixPath.len .. ^1]
   result.module = result.module.toLowerAscii
+  if stripPrefixModule.len > 0:
+    if result.module.startsWith(stripPrefixModule):
+      result.module = result.module[stripPrefixModule.len .. ^1]
+      while result.module.len > 0 and result.module[0] == '_':
+        result.module = result.module[1 .. ^1]
+    var normPrefix = stripPrefixModule.toLowerAscii
+    normPrefix = normPrefix.replace("_", "")
+    var normIdent = result.ident.toLowerAscii
+    normIdent = normIdent.replace("_", "")
+    if normPrefix.len > 0 and normIdent.startsWith(normPrefix):
+      result.ident = result.ident[normPrefix.len .. ^1]
 
 proc schemaNameToTypeName(name: string): string =
   toPascalCase(name)
@@ -533,8 +546,8 @@ proc genEndpointProc(httpMeth: string; path: string; operation: Operation;
   schemas: OrderedTableRef[string, Schema];
   typeNames: Table[string, string];
   pkgIdent: string; tag: string;
-  skipPrefixPath: sink string = ""): string =
-  let ep = genEndpoint(path, skipPrefixPath)
+  skipPrefixPath: sink string = ""; stripPrefixModule: sink string = ""): string =
+  let ep = genEndpoint(path, skipPrefixPath, stripPrefixModule)
   let httpMethod = httpMeth.toLowerAscii
   let procName = httpMethod & ep.ident
   let errType = &"{pkgIdent}ClientError"
@@ -687,7 +700,7 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
   schemas: OrderedTableRef[string, Schema];
   typeNames: Table[string, string];
   pkgIdent: string;
-  skipPrefixPath: sink string = ""): string =
+  skipPrefixPath: sink string = ""; stripPrefixModule: sink string = ""): string =
   result = stubHeader
   result &= "import std/[strformat, options, json]\n"
   result &= "import ./metaclient\n"
@@ -699,7 +712,7 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
   var hasTypes = false
   var firstType = true
   for (path, meth, operation) in ops:
-    let ep = genEndpoint(path, skipPrefixPath)
+    let ep = genEndpoint(path, skipPrefixPath, stripPrefixModule)
     var bodySchema: Schema
     if not operation.requestBody.isNil and not operation.requestBody.content.isNil:
       for mediaType, mt in operation.requestBody.content.pairs:
@@ -751,7 +764,7 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
     result &= "\n"
 
   for (path, meth, operation) in ops:
-    result &= genEndpointProc(meth, path, operation, schemas, typeNames, pkgIdent, tag, skipPrefixPath)
+    result &= genEndpointProc(meth, path, operation, schemas, typeNames, pkgIdent, tag, skipPrefixPath, stripPrefixModule)
 
 proc serverIdent(description, url: string): string =
   let src =
@@ -775,7 +788,17 @@ proc genServers*(servers: seq[Server]): string =
     let name = "server" & serverIdent(srv.description, srv.url)
     result &= &"  {name}* = \"{srv.url}\"\n"
 
-proc groupOperations*(pkg: Package): OrderedTableRef[string, seq[tuple[path: string, meth: string, operation: Operation]]] =
+proc stripModulePrefix(name: string; prefix: string): string =
+  ## Remove a leading module prefix (e.g. `x_amz_target_awslicensemanager`)
+  ## from a tag/module name, collapsing the separator that follows it.
+  if prefix.len == 0 or not name.startsWith(prefix):
+    return name
+  result = name[prefix.len .. ^1]
+  while result.len > 0 and result[0] == '_':
+    result = result[1 .. ^1]
+
+proc groupOperations*(pkg: Package;
+    stripPrefixModule = ""): OrderedTableRef[string, seq[tuple[path: string, meth: string, operation: Operation]]] =
   new(result)
   if pkg.oapi.isNil or pkg.oapi.paths.isNil:
     return
@@ -792,12 +815,15 @@ proc groupOperations*(pkg: Package): OrderedTableRef[string, seq[tuple[path: str
         if op.tags.len > 0:
           let firstTag = op.tags[0]
           if firstTag.len > 0: toModuleName(firstTag)
-          else: toModuleName(genEndpoint(curPath).module)
+          else: toModuleName(genEndpoint(curPath, stripPrefixModule = stripPrefixModule).module)
         else:
-          toModuleName(genEndpoint(curPath).module)
-      if not result.hasKey(tag):
-        result[tag] = newSeq[tuple[path: string, meth: string, operation: Operation]]()
-      result[tag].add((curPath, httpMeth, op))
+          toModuleName(genEndpoint(curPath, stripPrefixModule = stripPrefixModule).module)
+      let cleanTag = stripModulePrefix(tag, stripPrefixModule)
+      if cleanTag.len == 0:
+        continue
+      if not result.hasKey(cleanTag):
+        result[cleanTag] = newSeq[tuple[path: string, meth: string, operation: Operation]]()
+      result[cleanTag].add((curPath, httpMeth, op))
 
 proc detectOAuthUrl(scheme: SecurityScheme, kind: string): string =
   if scheme.isNil or scheme.flows.isNil or scheme.flows.kind != JObject:
@@ -809,7 +835,7 @@ proc detectOAuthUrl(scheme: SecurityScheme, kind: string): string =
         return flow[kind].getStr
 
 proc newGenerator*(pkg: Package, outputDir: string, skipPrefixPath = "";
-    spec: openjson.JsonNode = nil): Generator =
+    spec: openjson.JsonNode = nil; stripPrefixModule = ""): Generator =
   new(result)
   result.pkg = pkg
   result.outputDir = outputDir
@@ -818,6 +844,7 @@ proc newGenerator*(pkg: Package, outputDir: string, skipPrefixPath = "";
   result.genTime = $now()
   result.authType = "bearer"
   result.skipPrefixPath = skipPrefixPath
+  result.stripPrefixModule = stripPrefixModule
   result.spec = spec
   if pkg.oapi != nil:
     if pkg.oapi.servers.len > 0:
@@ -1072,7 +1099,7 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
 
   var emittedResp = initHashSet[string]()
   for (path, meth, operation) in ops:
-    let ep = genEndpoint(path, gen.skipPrefixPath)
+    let ep = genEndpoint(path, gen.skipPrefixPath, gen.stripPrefixModule)
     let successSchema = successResponseSchema(operation)
     if not successSchema.isNil and successSchema.refPath.len == 0 and
         successSchema.fieldType == stObject and not successSchema.properties.isNil:
@@ -1092,7 +1119,7 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
   result &= &"suite \"{tag} endpoints\":\n"
   var emitted = 0
   for (path, meth, operation) in ops:
-    let ep = genEndpoint(path, gen.skipPrefixPath)
+    let ep = genEndpoint(path, gen.skipPrefixPath, gen.stripPrefixModule)
     let procName = meth.toLowerAscii & ep.ident
     var args: seq[string]
     var skip = false
@@ -1197,12 +1224,12 @@ proc generate*(gen: Generator) =
     writeFile(srcPkgDir / "server_urls.nim", serversCode)
     hasServers = true
 
-  let groups = groupOperations(gen.pkg)
+  let groups = groupOperations(gen.pkg, gen.stripPrefixModule)
   if not groups.isNil:
     let typeNames = computeTypeNames(gen.schemas)
     for tag, ops in groups.pairs:
       let fileName = tag & ".nim"
-      let endpointCode = fillTemplate(genEndpointFile(tag, ops, gen.schemas, typeNames, gen.pkgIdent, gen.skipPrefixPath), vars)
+      let endpointCode = fillTemplate(genEndpointFile(tag, ops, gen.schemas, typeNames, gen.pkgIdent, gen.skipPrefixPath, gen.stripPrefixModule), vars)
       writeFile(srcPkgDir / fileName, endpointCode)
 
     if not gen.spec.isNil:

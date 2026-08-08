@@ -5,7 +5,7 @@
 # against `kapsis/pluginapi`; each command receives the generated package
 # directory as `path` and, when declared, the OpenAPI spec as `spec`.
 #
-# `openapi.gen` invokes prescripts before generating and postscripts after.
+# `oapi.gen` invokes prescripts before generating and postscripts after.
 #
 # (c) 2026 George Lemon | LGPLv3 License
 #          Made by Humans from OpenPeeps

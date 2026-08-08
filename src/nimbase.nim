@@ -23,29 +23,28 @@ when isMainModule:
         ## Build a native extension for other languages from Nim code
       
       -- "Code generator"
-      openapi:
-        ## OpenAPI 3.x utilities
+      oapi:
+        ## OAPI 3.x utilities
         init:
-          ## Initialize a default clue.openapi.config.yaml file
-        gen path(spec), string("output"), ?string("--config"), ?bool("-y"):
-          ## Generate a new API client library from OpenAPI 3.x spec file.
-          ## Automatically runs prescripts before and postscripts after.
-        mock path(spec), ?string("--host"), ?string("--port"):
-          ## Spin up a local mock server from OpenAPI 3.x spec file
+          ## Create nimbase.oapi.config.yaml
+        gen string(spec), string("output"), ?string("--config"), ?bool("-y"):
+          ## Generate a Nim client from an OAPI spec or URL
+        mock string(spec), ?string("--host"), ?string("--port"):
+          ## Start a local mock server from an OAPI spec
 
       -- "Scripts"
       prescripts:
-        ## Run pre-generation scripts contributed by kapsis plugins
+        ## Pre-generation scripts contributed by kapsis plugins
         list ?string("--dir"):
-          ## List available prescript commands from plugins in a directory
+          ## List available prescripts from plugins in a directory
         run path(target), ?string("--spec"), ?string("--dir"), ?string("--name"):
-          ## Run prescript commands from plugins in a directory against a target
+          ## Run a prescript from plugins in a directory against a target
       postscripts:
-        ## Run post-generation scripts contributed by kapsis plugins
+        ## Post-generation scripts contributed by kapsis plugins
         list ?string("--dir"):
-          ## List available postscript commands from plugins in a directory
+          ## List available scripts from plugins in a directory
         run path(target), ?string("--spec"), ?string("--dir"), ?string("--name"):
-          ## Run postscript commands from plugins in a directory against a target
+          ## Run postscripts from plugins in a directory against a target
 
       # -- "Bundlers"
       #   ## Commands for bundling plugins for different package managers

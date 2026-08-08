@@ -12,7 +12,7 @@ import pkg/openparser/json as openjson
 
 import ../openapi/specparser
 import ../openapi/codegen
-import ../openapi/cluesettings
+import ../openapi/oapi_settings
 import ../openapi/mockserver
 import ./scripts_cmd
 
@@ -56,9 +56,9 @@ proc loadOpenApiSpec(specpath: string): openjson.JsonNode =
   else:
     displayError("Spec file not found: " & specpath)
 
-proc openApiGenCommand*(v: Values) =
+proc oapiGenCommand*(v: Values) =
   ## Generate a new API client library from OpenAPI spec file
-  let specpath = v.get("spec").getPath.path
+  let specpath = v.get("spec").getStr
   let outputDir = v.get("output").getStr
 
   if dirExists(outputDir):
@@ -72,15 +72,20 @@ proc openApiGenCommand*(v: Values) =
       removeDir(outputDir)
 
   var skipPrefixPath = ""
+  var stripPrefixModule = ""
+  var configPath = ""
   if v.has("--config"):
-    let configPath = v.get("--config").getStr
-    if fileExists(configPath):
-      let configContent = readFile(configPath)
-      try:
-        let settings = parseClueSettings(configContent)
-        skipPrefixPath = settings.prefilters.routePrefix
-      except CatchableError as e:
-        displayWarning("Failed to parse config, using defaults: " & e.msg)
+    configPath = v.get("--config").getStr
+  elif fileExists(defaultConfigFile):
+    configPath = defaultConfigFile
+  if configPath.len > 0 and fileExists(configPath):
+    let configContent = readFile(configPath)
+    try:
+      let settings = parseOApiSettings(configContent)
+      skipPrefixPath = settings.prefilters.routePrefix
+      stripPrefixModule = settings.prefilters.stripPrefixModule
+    except CatchableError as e:
+      displayWarning("Failed to parse config, using defaults: " & e.msg)
 
   let root = loadOpenApiSpec(specpath)
   if root.isNil:
@@ -112,7 +117,7 @@ proc openApiGenCommand*(v: Values) =
       let (gitName, _) = execCmdEx("git config user.name")
       pkg.author = gitName.strip()
 
-    let gen = newGenerator(pkg, outputDir, skipPrefixPath, root)
+    let gen = newGenerator(pkg, outputDir, skipPrefixPath, root, stripPrefixModule)
     gen.generate()
 
     # postscripts run after generation
@@ -123,9 +128,9 @@ proc openApiGenCommand*(v: Values) =
   except CatchableError as e:
     displayError("Failed to parse spec: " & e.msg)
 
-proc openApiInitCommand*(v: Values) =
-  ## Initialize a default clue.openapi.config.yaml file
-  let configPath = "clue.openapi.config.yaml"
+proc oapiInitCommand*(v: Values) =
+  ## Create nimbase.oapi.config.yaml
+  let configPath = defaultConfigFile
   if fileExists(configPath):
     displayWarning("Config file already exists: " & configPath)
     if not promptConfirm("Overwrite existing file?"):
@@ -135,9 +140,9 @@ proc openApiInitCommand*(v: Values) =
   writeFile(configPath, content)
   displaySuccess("Created " & configPath)
 
-proc openApiMockCommand*(v: Values) =
-  ## Command for starting a local mock server from OpenAPI 3.x spec
-  let specpath = v.get("spec").getPath.path
+proc oapiMockCommand*(v: Values) =
+  ## Command for starting a local mock server from an OpenAPI 3.x spec file or URL
+  let specpath = v.get("spec").getStr
   let host =
     if v.has("--host"):
       v.get("--host").getStr

@@ -176,7 +176,7 @@ proc genEndpoint*(path: string, skipPrefixPath: sink string = "";
         add result.module, path[i]
     of '{', '}':
       discard
-    of '#', '=', '.':
+    of '#', '=', '.', ':':
       if i != 0:
         add result.module, '_'
       inc i

@@ -696,6 +696,17 @@ proc genEndpointProc(httpMeth: string; path: string; operation: Operation;
     result &= "  else:\n"
     result &= &"    raise newException({errType}, body)\n"
 
+proc successResponseSchema(operation: Operation): Schema =
+  ## The first 2xx `application/json` response schema, mirroring the client proc.
+  if operation.isNil or operation.responses.isNil:
+    return
+  for statusCode, response in operation.responses.pairs:
+    if statusCode.startsWith("2") and not response.content.isNil:
+      for mediaType, mt in response.content.pairs:
+        if mediaType == "application/json" and not mt.schema.isNil:
+          return mt.schema
+      break
+
 proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, operation: Operation]],
   schemas: OrderedTableRef[string, Schema];
   typeNames: Table[string, string];
@@ -703,10 +714,10 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
   skipPrefixPath: sink string = ""; stripPrefixModule: sink string = ""): string =
   result = stubHeader
   result &= "import std/[strformat, options, json]\n"
-  result &= "import ./metaclient\n"
-  result &= "import ./types\n"
+  result &= "import ./private/metaclient\n"
+  result &= "import ./private/types\n"
   if schemasNeedRenames(schemas):
-    result &= "import ./renames\n"
+    result &= "import ./private/renames\n"
   result &= "\n"
 
   var hasTypes = false
@@ -729,19 +740,18 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
           result &= "\n"
         result &= reqType
         firstType = false
-    for statusCode, response in operation.responses.pairs:
-      if not response.content.isNil:
-        for mediaType, mt in response.content.pairs:
-          if mediaType == "application/json" and not mt.schema.isNil:
-            let respType = genResponseType(ep.ident, meth, mt.schema, schemas, typeNames)
-            if respType.len > 0:
-              if not hasTypes:
-                result &= "type\n"
-                hasTypes = true
-              if not firstType:
-                result &= "\n"
-              result &= respType
-              firstType = false
+    let successSchema = successResponseSchema(operation)
+    if not successSchema.isNil and successSchema.refPath.len == 0 and
+        successSchema.fieldType == stObject and not successSchema.properties.isNil:
+      let respType = genResponseType(ep.ident, meth, successSchema, schemas, typeNames)
+      if respType.len > 0:
+        if not hasTypes:
+          result &= "type\n"
+          hasTypes = true
+        if not firstType:
+          result &= "\n"
+        result &= respType
+        firstType = false
 
   var emittedEnums: seq[string]
   for (path, meth, operation) in ops:
@@ -945,9 +955,9 @@ proc genCommonFile(gen: Generator): string =
   let typeNames = computeTypeNames(gen.schemas)
   let qualifier = gen.pkgName & "."
   result = fillTemplate(stubHeader, {
-    "clue_pkg_name": gen.pkgName,
-    "clue_pkg_generation_time": gen.genTime,
-    "clue_pkg_license": gen.pkg.license,
+    "nimbase_pkg_name": gen.pkgName,
+    "nimbase_pkg_generation_time": gen.genTime,
+    "nimbase_pkg_license": gen.pkg.license,
   }.toTable)
   result &= "import std/net\n"
   result &= "from std/asyncdispatch import waitFor, asyncCheck\n"
@@ -1011,17 +1021,6 @@ proc opRefs(op: Operation): HashSet[string] =
         for mt in resp.content.values:
           collectSchemaRefs(mt.schema, result)
 
-proc successResponseSchema(operation: Operation): Schema =
-  ## The first 2xx `application/json` response schema, mirroring the client proc.
-  if operation.isNil or operation.responses.isNil:
-    return
-  for statusCode, response in operation.responses.pairs:
-    if statusCode.startsWith("2") and not response.content.isNil:
-      for mediaType, mt in response.content.pairs:
-        if mediaType == "application/json" and not mt.schema.isNil:
-          return mt.schema
-      break
-
 proc resolveParamTarget(param: Parameter;
     schemas: OrderedTableRef[string, Schema]): Schema =
   if param.isNil or param.schema.isNil:
@@ -1076,9 +1075,9 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
   let clientIdent = gen.pkgIdent & "Client"
 
   result = fillTemplate(stubHeader, {
-    "clue_pkg_name": gen.pkgName,
-    "clue_pkg_generation_time": gen.genTime,
-    "clue_pkg_license": gen.pkg.license,
+    "nimbase_pkg_name": gen.pkgName,
+    "nimbase_pkg_generation_time": gen.genTime,
+    "nimbase_pkg_license": gen.pkg.license,
   }.toTable)
   result &= "import std/[asyncdispatch, options, json]\n"
   result &= "import unittest\n"
@@ -1177,7 +1176,9 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
 proc generate*(gen: Generator) =
   let srcDir = gen.outputDir / "src"
   let srcPkgDir = srcDir / gen.pkgName
+  let privateDir = srcPkgDir / "private"
   ensureDir(srcPkgDir)
+  ensureDir(privateDir)
 
   let serverUrl =
     if gen.baseUri.len > 0:
@@ -1195,17 +1196,17 @@ proc generate*(gen: Generator) =
     else: ""
 
   let vars = {
-    "clue_pkg_name": gen.pkgName,
-    "clue_client_ident": gen.pkgIdent & "Client",
-    "clue_client_ident_error": gen.pkgIdent & "ClientError",
-    "clue_pkg_generation_time": gen.genTime,
-    "clue_pkg_license": gen.pkg.license,
-    "clue_pkg_desc": gen.pkg.description,
-    "clue_base_uri": serverUrl,
-    "clue_oauth_token_url": gen.oauthTokenUrl,
-    "clue_oauth_auth_url": gen.oauthAuthUrl,
-    "clue_requires_oauth2": oauth2Require,
-    "clue_renames_import": renamesImport,
+    "nimbase_pkg_name": gen.pkgName,
+    "nimbase_client_ident": gen.pkgIdent & "Client",
+    "nimbase_client_ident_error": gen.pkgIdent & "ClientError",
+    "nimbase_pkg_generation_time": gen.genTime,
+    "nimbase_pkg_license": gen.pkg.license,
+    "nimbase_pkg_desc": gen.pkg.description,
+    "nimbase_base_uri": serverUrl,
+    "nimbase_oauth_token_url": gen.oauthTokenUrl,
+    "nimbase_oauth_auth_url": gen.oauthAuthUrl,
+    "nimbase_requires_oauth2": oauth2Require,
+    "nimbase_renames_import": renamesImport,
     "pkgVersion": gen.pkg.openApiVersion,
     "pkgAuthor": gen.pkg.author,
     "pkgDesc": gen.pkg.description,
@@ -1215,20 +1216,20 @@ proc generate*(gen: Generator) =
   let metaclientStub =
     if gen.authType == "oauth2": stubMetaclientOAuth2
     else: stubMetaclient
-  writeFile(srcPkgDir / "metaclient.nim", fillTemplate(metaclientStub, vars))
+  writeFile(privateDir / "metaclient.nim", fillTemplate(metaclientStub, vars))
   writeFile(gen.outputDir / "README.md", fillTemplate(stubReadme, vars))
 
   if not gen.schemas.isNil and gen.schemas.len > 0:
     let typesCode = genTypes(gen.schemas)
-    writeFile(srcPkgDir / "types.nim", typesCode)
+    writeFile(privateDir / "types.nim", typesCode)
 
   if renamesCode.len > 0:
-    writeFile(srcPkgDir / "renames.nim", renamesCode)
+    writeFile(privateDir / "renames.nim", renamesCode)
 
   var hasServers = false
   if not gen.pkg.oapi.isNil and gen.pkg.oapi.servers.len > 1:
     let serversCode = genServers(gen.pkg.oapi.servers)
-    writeFile(srcPkgDir / "server_urls.nim", serversCode)
+    writeFile(privateDir / "server_urls.nim", serversCode)
     hasServers = true
 
   let groups = groupOperations(gen.pkg, gen.stripPrefixModule)
@@ -1254,16 +1255,14 @@ proc generate*(gen: Generator) =
   for tag, _ in groups.pairs:
     modules.add(tag)
     mainExports.add(tag)
-  modules.add("types")
-  mainExports.add("types")
+  var privateModules: seq[string]
+  if not gen.schemas.isNil and gen.schemas.len > 0:
+    privateModules.add("types")
   if renamesCode.len > 0:
-    modules.add("renames")
-    mainExports.add("renames")
-  modules.add("metaclient")
-  mainExports.add("metaclient")
+    privateModules.add("renames")
+  privateModules.add("metaclient")
   if hasServers:
-    modules.add("server_urls")
-    mainExports.add("server_urls")
+    privateModules.add("server_urls")
 
   let importPrefix = "import ./" & gen.pkgName & "/["
   let importIndent = " ".repeat(importPrefix.len)
@@ -1284,6 +1283,10 @@ proc generate*(gen: Generator) =
       lines[^1] = lines[^1][0..^2] & "]"
       lines.join("\n") & "\n"
 
+  mainExports.add(privateModules)
+  let privateImportLine =
+    "import ./" & gen.pkgName & "/private/[" & privateModules.join(", ") & "]\n"
+
   let exportLine =
     if mainExports.len <= 5:
       "export " & mainExports.join(", ") & "\n"
@@ -1300,7 +1303,7 @@ proc generate*(gen: Generator) =
       lines[^1] = lines[^1][0..^2]
       lines.join("\n") & "\n"
 
-  let mainCode = fillTemplate(stubHeader, vars) & importLine & "\n\n" & exportLine
+  let mainCode = fillTemplate(stubHeader, vars) & importLine & privateImportLine & "\n" & exportLine
   writeFile(srcDir / &"{gen.pkgName}.nim", mainCode)
 
   writeFile(gen.outputDir / &"{gen.pkgName}.nimble", fillTemplate(stubNimble, vars))

@@ -1,4 +1,4 @@
-import ../../src/clue/kits/luakit
+import ../../src/nimbase/kits/luakit
 
 luaModule do:
   name: "mylib"

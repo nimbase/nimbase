@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# Clue Ruby PluginKit Example
+# Nimbase Ruby PluginKit Example
 # Load and test the compiled Nim extension (.bundle)
 
 require_relative 'build/Example'

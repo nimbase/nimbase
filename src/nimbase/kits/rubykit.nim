@@ -15,7 +15,7 @@
 ## =====
 ##
 ## ```nim
-## import clue/kits/rubykit
+## import nimbase/kits/rubykit
 ##
 ## rubyModule do:
 ##   name: "example"
@@ -214,5 +214,5 @@ macro rubyModule*(stmtNodes: untyped) =
       var `moduleVar` = rb_define_module(`moduleName`)
       `wrappedRegistrations`
 
-  when defined(clueDebugExtension):
+  when defined(nimbaseDebugExtension):
     echo result.repr

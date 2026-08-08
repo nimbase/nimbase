@@ -1,8 +1,8 @@
-# Clue - A toolkit for cool developers
+# Nimbase - Code generator. OAPI 3.x clients, wrappers from C/C++, FFI bindings & native extensions
 #
 # (c) 2026 George Lemon | LGPL-v3 License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/clue
+#          https://github.com/nimbase/nimbase
 
 # this should be passed to the dev plugin to be included
 when defined(macosx):

@@ -9,4 +9,4 @@ srcDir        = "src"
 # Dependencies
 
 requires "nim >= 2.0.0"
-requires "openparser"{clue_requires_oauth2}
+requires "openparser"{nimbase_requires_oauth2}

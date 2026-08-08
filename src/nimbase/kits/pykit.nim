@@ -291,5 +291,5 @@ macro pythonModule*(stmtNodes: untyped) =
 
   result.add(initProc)
 
-  when defined(clueDebugExtension):
+  when defined(nimbaseDebugExtension):
     echo result.repr

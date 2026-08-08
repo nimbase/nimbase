@@ -1,4 +1,4 @@
-import ../../src/clue/kits/phpkit
+import ../../src/nimbase/kits/phpkit
 
 phpModule do:
   name = "example"

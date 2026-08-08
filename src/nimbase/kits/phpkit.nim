@@ -301,5 +301,5 @@ macro phpModule*(stmtNodes: untyped) =
       # it to register the extension
       moduleEntry
   
-  when defined(clueDebugExtension):
+  when defined(nimbaseDebugExtension):
     echo result.repr

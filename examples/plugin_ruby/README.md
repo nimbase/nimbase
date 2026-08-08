@@ -1,18 +1,18 @@
 ## PluginKit for Ruby
 
-This showcases the Clue PluginKit interface for Ruby, which allows you to create
+This showcases the Nimbase PluginKit interface for Ruby, which allows you to create
 native Ruby extensions (`.bundle`) in Nim using Ruby's C API.
 
 ### Prerequisites
 
 - Ruby 3.0 or higher
 - Nim 2.0 or higher
-- Clue installed (`nimble install clue`)
+- Nimbase installed (`nimble install nimbase`)
 
 ### Simple example
 
 ```nim
-import clue/kits/rubykit
+import nimbase/kits/rubykit
 
 rubyModule do:
   name: "Example"
@@ -57,8 +57,8 @@ puts Example.repeat("go", 3)
 
 ### Debugging
 
-Use `-d:clueDebugExtension` when compiling to see the generated Nim code.
+Use `-d:nimbaseDebugExtension` when compiling to see the generated Nim code.
 
 ```
-nim c -d:clueDebugExtension --app:lib --out:"build/Example.bundle" plugin_example.nim
+nim c -d:nimbaseDebugExtension --app:lib --out:"build/Example.bundle" plugin_example.nim
 ```

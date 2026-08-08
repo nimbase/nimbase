@@ -1,22 +1,22 @@
-# {clue_pkg_name} API client for Nim
+# {nimbase_pkg_name} API client for Nim
 #
 # Auto-generated from OpenAPI 3.x specification
-# using the awesome [Clue CLI Assistant](https://github.com/openpeeps/clue)
+# using the awesome [Nimbase CLI](https://github.com/nimbase/nimbase)
 #
-# Generated at: {clue_pkg_generation_time}
-# License: {clue_pkg_license}
+# Generated at: {nimbase_pkg_generation_time}
+# License: {nimbase_pkg_license}
 
 import std/[asyncdispatch, httpclient, tables,
         strutils, sequtils, times, uri, options]
 
 import pkg/oauth2
 import pkg/openparser/json
-{clue_renames_import}
+{nimbase_renames_import}
 
 export asyncdispatch, httpclient, json, options, times, oauth2, tables, sequtils
 
 type
-  {clue_client_ident}* = ref object of RootObj
+  {nimbase_client_ident}* = ref object of RootObj
     baseUri*: string
     httpClient*: AsyncHttpClient
     accessToken*: Option[string]
@@ -27,43 +27,43 @@ type
 
   QueryTable* = OrderedTable[string, string]
 
-  {clue_client_ident_error}* = object of CatchableError
+  {nimbase_client_ident_error}* = object of CatchableError
 
 const
-  oauthTokenUrl* = "{clue_oauth_token_url}"
-  oauthAuthUrl* = "{clue_oauth_auth_url}"
+  oauthTokenUrl* = "{nimbase_oauth_token_url}"
+  oauthAuthUrl* = "{nimbase_oauth_auth_url}"
 
 proc `$`*(query: QueryTable): string =
   if query.len > 0:
     add result, "?"
     add result, join(query.keys.toSeq.mapIt(it & "=" & query[it]), "&")
 
-proc init{clue_client_ident}*: {clue_client_ident} =
+proc init{nimbase_client_ident}*: {nimbase_client_ident} =
   new(result)
-  result.baseUri = "{clue_base_uri}"
+  result.baseUri = "{nimbase_base_uri}"
   result.httpClient = newAsyncHttpClient()
   result.httpClient.headers = newHttpHeaders({
     "Accept": "application/json"
   })
 
-proc configureOAuth*(client: {clue_client_ident}, clientId, clientSecret: string) =
+proc configureOAuth*(client: {nimbase_client_ident}, clientId, clientSecret: string) =
   client.oauthClientId = some(clientId)
   client.oauthClientSecret = some(clientSecret)
 
-proc setTokens*(client: {clue_client_ident}, accessToken, refreshToken: string,
+proc setTokens*(client: {nimbase_client_ident}, accessToken, refreshToken: string,
                 expiresIn: Option[int] = none(int)) =
   client.accessToken = some(accessToken)
   if refreshToken.len > 0:
     client.refreshToken = some(refreshToken)
   client.tokenExpiry = expiresIn
 
-proc canAutoRefresh*(client: {clue_client_ident}): bool =
+proc canAutoRefresh*(client: {nimbase_client_ident}): bool =
   client.refreshToken.isSome and
     client.oauthClientId.isSome and
     client.oauthClientSecret.isSome and
     oauthTokenUrl.len > 0
 
-proc tryRefreshToken*(client: {clue_client_ident}): Future[bool] {.async.} =
+proc tryRefreshToken*(client: {nimbase_client_ident}): Future[bool] {.async.} =
   if not client.canAutoRefresh:
     return false
   let resp = await refreshToken(
@@ -111,11 +111,11 @@ proc exchangeCodeForToken*(clientId, clientSecret, code, redirectUri: string): F
   let resp = await http.post(oauthTokenUrl, body)
   result = parseJson(await resp.body)
 
-proc authRequest(client: {clue_client_ident}) =
+proc authRequest(client: {nimbase_client_ident}) =
   if client.accessToken.isSome:
     client.httpClient.headers["Authorization"] = "Bearer " & client.accessToken.get
 
-proc httpGet*(client: {clue_client_ident},
+proc httpGet*(client: {nimbase_client_ident},
   endpoint: string): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint
@@ -124,7 +124,7 @@ proc httpGet*(client: {clue_client_ident},
     client.authRequest
     result = await client.httpClient.get(url)
 
-proc httpGet*(client: {clue_client_ident},
+proc httpGet*(client: {nimbase_client_ident},
   endpoint: string, query: QueryTable): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint & $query
@@ -133,7 +133,7 @@ proc httpGet*(client: {clue_client_ident},
     client.authRequest
     result = await client.httpClient.get(url)
 
-proc httpPost*[T](client: {clue_client_ident},
+proc httpPost*[T](client: {nimbase_client_ident},
   endpoint: string, body: T): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint
@@ -142,7 +142,7 @@ proc httpPost*[T](client: {clue_client_ident},
     client.authRequest
     result = await client.httpClient.post(url, toJson(body))
 
-proc httpPost*(client: {clue_client_ident},
+proc httpPost*(client: {nimbase_client_ident},
   endpoint: string): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint
@@ -151,7 +151,7 @@ proc httpPost*(client: {clue_client_ident},
     client.authRequest
     result = await client.httpClient.post(url)
 
-proc httpPost*(client: {clue_client_ident},
+proc httpPost*(client: {nimbase_client_ident},
   endpoint: string, query: QueryTable): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint & $query
@@ -160,7 +160,7 @@ proc httpPost*(client: {clue_client_ident},
     client.authRequest
     result = await client.httpClient.post(url)
 
-proc httpPut*[T](client: {clue_client_ident},
+proc httpPut*[T](client: {nimbase_client_ident},
   endpoint: string, body: T): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint
@@ -171,7 +171,7 @@ proc httpPut*[T](client: {clue_client_ident},
     result = await client.httpClient.request(url, httpMethod = HttpPut,
       body = toJson(body))
 
-proc httpPut*(client: {clue_client_ident},
+proc httpPut*(client: {nimbase_client_ident},
   endpoint: string): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint
@@ -180,7 +180,7 @@ proc httpPut*(client: {clue_client_ident},
     client.authRequest
     result = await client.httpClient.request(url, httpMethod = HttpPut)
 
-proc httpPut*(client: {clue_client_ident},
+proc httpPut*(client: {nimbase_client_ident},
   endpoint: string, query: QueryTable): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint & $query
@@ -189,7 +189,18 @@ proc httpPut*(client: {clue_client_ident},
     client.authRequest
     result = await client.httpClient.request(url, httpMethod = HttpPut)
 
-proc httpDelete*(client: {clue_client_ident},
+proc httpDelete*[T](client: {nimbase_client_ident},
+  endpoint: string, body: T): Future[AsyncResponse] {.async.} =
+  client.authRequest
+  let url = client.baseUri & endpoint
+  result = await client.httpClient.request(url, httpMethod = HttpDelete,
+    body = toJson(body))
+  if result.code == Http401 and await client.tryRefreshToken:
+    client.authRequest
+    result = await client.httpClient.request(url, httpMethod = HttpDelete,
+      body = toJson(body))
+
+proc httpDelete*(client: {nimbase_client_ident},
   endpoint: string): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint
@@ -198,7 +209,7 @@ proc httpDelete*(client: {clue_client_ident},
     client.authRequest
     result = await client.httpClient.request(url, httpMethod = HttpDelete)
 
-proc httpDelete*(client: {clue_client_ident},
+proc httpDelete*(client: {nimbase_client_ident},
   endpoint: string, query: QueryTable): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint & $query
@@ -207,7 +218,7 @@ proc httpDelete*(client: {clue_client_ident},
     client.authRequest
     result = await client.httpClient.request(url, httpMethod = HttpDelete)
 
-proc httpPatch*[T](client: {clue_client_ident},
+proc httpPatch*[T](client: {nimbase_client_ident},
   endpoint: string, body: T): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint
@@ -218,7 +229,7 @@ proc httpPatch*[T](client: {clue_client_ident},
     result = await client.httpClient.request(url, httpMethod = HttpPatch,
       body = toJson(body))
 
-proc httpPatch*(client: {clue_client_ident},
+proc httpPatch*(client: {nimbase_client_ident},
   endpoint: string): Future[AsyncResponse] {.async.} =
   client.authRequest
   let url = client.baseUri & endpoint

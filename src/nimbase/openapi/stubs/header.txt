@@ -1,7 +1,7 @@
-# {clue_pkg_name} API client for Nim
+# {nimbase_pkg_name} API client for Nim
 #
 # Auto-generated from OpenAPI 3.x specification
-# Clue CLI Assistant https://github.com/openpeeps/clue
+# Nimbase CLI https://github.com/nimbase/nimbase
 #
-# Generated at: {clue_pkg_generation_time}
-# License: {clue_pkg_license}
+# Generated at: {nimbase_pkg_generation_time}
+# License: {nimbase_pkg_license}

@@ -8,7 +8,7 @@
 // NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 // See the Mulan PSL v2 for more details.
 
-// Clue - A toolkit for cool developers
+// Nimbase - Code generator. OAPI 3.x clients, wrappers from C/C++, FFI bindings & native extensions
 // (c) 2026 George Lemon | Modified from PHPER framework under Mulan PSL v2
 
 #include <stdlib.h>

@@ -15,7 +15,7 @@
 ## =====
 ##
 ## ```nim
-## import clue/kits/luakit
+## import nimbase/kits/luakit
 ##
 ## luaModule do:
 ##   name: "mylib"
@@ -225,5 +225,5 @@ macro luaModule*(stmtNodes: untyped) =
   openProc[4] = nnkPragma.newTree(ident"exportc", ident"cdecl", ident"dynlib")
   result.add(openProc)
 
-  when defined(clueDebugExtension):
+  when defined(nimbaseDebugExtension):
     echo result.repr

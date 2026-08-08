@@ -1,18 +1,18 @@
 ## PluginKit for Lua (LuaJIT)
 
-This showcases the Clue PluginKit interface for Lua, which allows you to create
+This showcases the Nimbase PluginKit interface for Lua, which allows you to create
 native Lua extensions (`.so`) in Nim using LuaJIT's C API.
 
 ### Prerequisites
 
 - LuaJIT 2.1 or higher
 - Nim 2.0 or higher
-- Clue installed (`nimble install clue`)
+- Nimbase installed (`nimble install nimbase`)
 
 ### Simple example
 
 ```nim
-import clue/kits/luakit
+import nimbase/kits/luakit
 
 luaModule do:
   name: "mylib"
@@ -62,8 +62,8 @@ LUA_CPATH="./build/?.so;;" luajit test_example.lua
 
 ### Debugging
 
-Use `-d:clueDebugExtension` when compiling to see the generated Nim code.
+Use `-d:nimbaseDebugExtension` when compiling to see the generated Nim code.
 
 ```
-nim c -d:clueDebugExtension --app:lib --out:"build/mylib.so" plugin_example.nim
+nim c -d:nimbaseDebugExtension --app:lib --out:"build/mylib.so" plugin_example.nim
 ```

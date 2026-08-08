@@ -1,15 +1,15 @@
 ## PluginKit for PHP
-Thiis will showcase various features of the Clue PluginKit interface for PHP, which allows you to create native PHP extensions in Nim. Amazing!
+Thiis will showcase various features of the Nimbase PluginKit interface for PHP, which allows you to create native PHP extensions in Nim. Amazing!
 
 ### Prerequisites
 - PHP 8.0 or higher
 - Nim 2.0 or higher
-- Clue installed `nimble install clue`
+- Nimbase installed `nimble install nimbase`
 
 ## Simple example
 
 ```nim
-import clue/kits/phpkit
+import nimbase/kits/phpkit
 
 phpModule do:
   name = "hello"
@@ -42,7 +42,7 @@ echo helloWorld("PHP"); // "👋 Hey there PHP 👑 Nim is Awesome!"
 ```
 
 ## Debugging your extension
-Use `-d:clueDebugExtension` when compiling your extension to show the generated Nim code. 
+Use `-d:nimbaseDebugExtension` when compiling your extension to show the generated Nim code. 
 
 If something goes wrong you may want to see the error messages in PHP. You can do this by running PHP with the `-d` flag to set the following flags
 ```

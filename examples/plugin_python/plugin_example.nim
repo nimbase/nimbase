@@ -1,8 +1,8 @@
-import ../../src/clue/kits/pykit
+import ../../src/nimbase/kits/pykit
 
 pythonModule do:
   name: "mylib"
-  doc: "Example Nim extension built with Clue"
+  doc: "Example Nim extension built with Nimbase"
 
   proc hello(name: string) =
     result = toPyString("Hello " & name & " from Nim!")

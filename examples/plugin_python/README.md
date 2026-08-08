@@ -1,18 +1,18 @@
 ## PluginKit for Python
 
-This showcases the Clue PluginKit interface for Python, which allows you to
+This showcases the Nimbase PluginKit interface for Python, which allows you to
 create native Python extensions (`.so`) in Nim using the CPython C API.
 
 ### Prerequisites
 
 - Python 3.11 or higher
 - Nim 2.0 or higher
-- Clue installed (`nimble install clue`)
+- Nimbase installed (`nimble install nimbase`)
 
 ### Simple example
 
 ```nim
-import clue/kits/pykit
+import nimbase/kits/pykit
 
 pythonModule do:
   name: "mylib"
@@ -57,4 +57,4 @@ PYTHONPATH="./build:$PYTHONPATH" python3 test_example.py
 
 ### Debugging
 
-Use `-d:clueDebugExtension` when compiling to see the generated Nim code.
+Use `-d:nimbaseDebugExtension` when compiling to see the generated Nim code.

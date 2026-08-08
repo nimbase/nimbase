@@ -1,5 +1,5 @@
 #!/usr/bin/env luajit
--- Clue Lua PluginKit Example
+-- Nimbase Lua PluginKit Example
 -- Load and test the compiled Nim extension
 
 local mylib = require "mylib"

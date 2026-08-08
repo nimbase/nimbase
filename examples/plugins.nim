@@ -1,8 +1,8 @@
-import ../src/clue/pluginkit
+import ../src/nimbase/pluginkit
 
 initExtension dp:
   ## A simple example of how to create plugins for other
-  ## languages using Clue toolkit
+  ## languages using Nimbase toolkit
   name: "example"
   version: "0.1.0"
 

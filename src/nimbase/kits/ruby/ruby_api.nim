@@ -1,8 +1,8 @@
-# Clue - A cool toolkit for Nim developers
+# Nimbase - Code generator. OAPI 3.x clients, wrappers from C/C++, FFI bindings & native extensions
 #
 # (c) 2026 George Lemon | MIT License
 #          Made by Humans from OpenPeeps
-#          https://github.com/openpeeps/clue
+#          https://github.com/nimbase/nimbase
 
 ## Low-level Nim bindings to the Ruby C API (`ruby.h`).
 ##
@@ -14,7 +14,7 @@
 ## Usage
 ## =====
 ## ```nim
-## import clue/kits/ruby/ruby_api
+## import nimbase/kits/ruby/ruby_api
 ##
 ## proc hello_world(self: VALUE): VALUE {.cdecl.} =
 ##   rb_p(rb_str_new_cstr("Hello from Nim!"))

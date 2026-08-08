@@ -1,4 +1,4 @@
-import ../../src/clue/kits/rubykit
+import ../../src/nimbase/kits/rubykit
 
 rubyModule do:
   name: "Example"

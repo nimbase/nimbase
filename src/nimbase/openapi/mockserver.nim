@@ -400,7 +400,7 @@ proc startMockServer*(spec: openjson.JsonNode, host = "127.0.0.1",
   ## Bind and run the mock server forever (until Ctrl+C).
   activeMockServer = newMockServer(spec, host, port)
   waitFor activeMockServer.open()
-  echo "Clue OpenAPI mock server listening on http://" & host & ":" & $activeMockServer.port
+  echo "Nimbase OpenAPI mock server listening on http://" & host & ":" & $activeMockServer.port
   printRoutes(activeMockServer.routes)
   setControlCHook(ctrlCHook)
   waitFor activeMockServer.serve()

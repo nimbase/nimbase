@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Clue Python PluginKit Example
+# Nimbase Python PluginKit Example
 # Load and test the compiled Nim extension
 
 import sys

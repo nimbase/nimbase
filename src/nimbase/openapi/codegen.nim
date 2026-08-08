@@ -715,7 +715,8 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
   result = stubHeader
   result &= "import std/[strformat, options, json]\n"
   result &= "import ./private/metaclient\n"
-  result &= "import ./private/types\n"
+  if schemas != nil and schemas.len > 0:
+    result &= "import ./private/types\n"
   if schemasNeedRenames(schemas):
     result &= "import ./private/renames\n"
   result &= "\n"

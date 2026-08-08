@@ -33,7 +33,16 @@ remote URL:
 nimbase oapi init                            # create a nimbase.oapi.config.yaml
 nimbase oapi gen api.yaml ./client           # auto-detects nimbase.oapi.config.yaml
 nimbase oapi gen api.yaml ./client --config other.yaml   # or pass one explicitly
+nimbase oapi gurugen "stripe.com" ./stripe   # generate from apis.guru
 nimbase oapi mock petstore.yaml --port:8080
+```
+
+`gurugen` looks up an API in [apis.guru](https://api.apis.guru/v2/list.json) by its
+key (e.g. `stripe.com`, `1password.com:events`) and uses the API's `preferred`
+spec version unless `--spec-version` is given:
+
+```sh
+nimbase oapi gurugen "1password.com:events" ./events --spec-version:1.0.0
 ```
 
 Generator settings live in `nimbase.oapi.config.yaml` (auto-loaded from the

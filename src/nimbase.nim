@@ -28,6 +28,8 @@ when isMainModule:
           ## Create nimbase.oapi.config.yaml
         gen string(spec), string("output"), ?string("--config"), ?bool("-y"):
           ## Generate a Nim client from an OAPI spec or URL
+        gurugen string(apiName), string(output), ?string("--config"), ?string("--spec-version"), ?bool("-y"):
+          ## Generate a Nim client from an apis.guru API (e.g. "stripe.com")
         mock string(spec), ?string("--host"), ?string("--port"):
           ## Start a local mock server from an OAPI spec
 

@@ -4,7 +4,8 @@
 #          Made by Humans from OpenPeeps
 #          https://github.com/nimbase/nimbase
 
-import std/[os, osproc, strutils, httpclient]
+import std/[os, osproc, strutils, httpclient, algorithm]
+import std/editdistance
 
 import pkg/kapsis/runtime
 import pkg/kapsis/interactive/prompts
@@ -16,12 +17,24 @@ import ../openapi/oapi_settings
 import ../openapi/mockserver
 import ./scripts_cmd
 
+const guruListUrl* = "https://api.apis.guru/v2/list.json"
+
 proc derivePkgId(pkg: Package): string =
   if pkg.oapi.isNil: return "client"
   let title = pkg.oapi.info.title.toLowerAscii
   var parts = title.split({' ', '/', '-', '_'})
   if parts.len == 0: return "client"
   result = parts[0]
+
+proc fetchHttpContent(url: string): string =
+  ## Fetch a URL over HTTP(S), returning its content or "" on failure.
+  var httpClient = newHttpClient()
+  try:
+    result = httpClient.getContent(url)
+  except CatchableError as e:
+    displayError("Failed to fetch " & url & ": " & e.msg)
+  finally:
+    httpClient.close()
 
 proc loadOpenApiSpec(specpath: string): openjson.JsonNode =
   ## Load and parse an OpenAPI spec from a JSON file, YAML file, or URL.
@@ -43,24 +56,20 @@ proc loadOpenApiSpec(specpath: string): openjson.JsonNode =
         displayError("Failed to parse JSON spec: " & getCurrentExceptionMsg())
         return
   elif specpath.startsWith("http://") or specpath.startsWith("https://"):
-    var httpClient = newHttpClient()
+    let content = fetchHttpContent(specpath)
+    if content.len == 0:
+      return
     try:
-      let content = httpClient.getContent(specpath)
-      try:
-        result = openjson.fromJson(content)
-      except:
-        displayError("Failed to parse spec: " & getCurrentExceptionMsg())
-        return
-    finally:
-      httpClient.close()
+      result = openjson.fromJson(content)
+    except:
+      displayError("Failed to parse spec: " & getCurrentExceptionMsg())
+      return
   else:
     displayError("Spec file not found: " & specpath)
 
-proc oapiGenCommand*(v: Values) =
-  ## Generate a new API client library from OpenAPI spec file
-  let specpath = v.get("spec").getStr
-  let outputDir = v.get("output").getStr
-
+proc generateClient(v: Values; specpath, outputDir: string) =
+  ## Shared flow for `oapi.gen` and `oapi.gurugen`: resolve settings, load the
+  ## spec, run prescripts/postscripts and emit the client package.
   if dirExists(outputDir):
     if v.has("-y"):
       removeDir(outputDir)
@@ -130,6 +139,69 @@ proc oapiGenCommand*(v: Values) =
 
   except CatchableError as e:
     displayError("Failed to parse spec: " & e.msg)
+
+proc oapiGenCommand*(v: Values) =
+  ## Generate a new API client library from OpenAPI spec file
+  let specpath = v.get("spec").getStr
+  let outputDir = v.get("output").getStr
+  generateClient(v, specpath, outputDir)
+
+proc oapiGurugenCommand*(v: Values) =
+  ## Generate a client library from an apis.guru API, e.g. "stripe.com"
+  let apiName = v.get("apiName").getStr
+  let outputDir = v.get("output").getStr
+
+  let listContent = fetchHttpContent(guruListUrl)
+  if listContent.len == 0:
+    return
+  var list: openjson.JsonNode
+  try:
+    list = openjson.fromJson(listContent)
+  except:
+    displayError("Failed to parse apis.guru list: " & getCurrentExceptionMsg())
+    return
+
+  if list.isNil or not list.hasKey(apiName):
+    displayError("API not found in apis.guru: " & apiName)
+    var suggestions: seq[tuple[name: string, dist: int]]
+    for k in list.keys:
+      suggestions.add((k, editDistance(k, apiName)))
+    suggestions.sort(proc(a, b: tuple[name: string, dist: int]): int = cmp(a.dist, b.dist))
+    if suggestions.len > 0:
+      var top: seq[string]
+      for s in suggestions[0 .. min(2, suggestions.high)]:
+        top.add(s.name)
+      displayInfo("Did you mean: " & top.join(", "))
+    return
+
+  let entry = list[apiName]
+  var version = ""
+  if entry.hasKey("preferred"):
+    version = entry["preferred"].getStr
+  if v.has("--spec-version"):
+    version = v.get("--spec-version").getStr
+  if version.len == 0 and entry.hasKey("versions") and entry["versions"].kind == JObject:
+    for vk in entry["versions"].keys:
+      version = vk
+      break
+
+  if entry.isNil or entry["versions"].isNil or entry["versions"].kind != JObject or
+      not entry["versions"].hasKey(version):
+    displayError("Version not found for " & apiName & ": " & version)
+    var vs: seq[string]
+    if entry["versions"].kind == JObject:
+      for vk in entry["versions"].keys:
+        vs.add(vk)
+    displayInfo("Available versions: " & vs.join(", "))
+    return
+
+  let versionInfo = entry["versions"][version]
+  if versionInfo.isNil or not versionInfo.hasKey("swaggerUrl"):
+    displayError("No spec URL found for " & apiName & " v" & version)
+    return
+  let swaggerUrl = versionInfo["swaggerUrl"].getStr
+
+  generateClient(v, swaggerUrl, outputDir)
 
 proc oapiInitCommand*(v: Values) =
   ## Create nimbase.oapi.config.yaml

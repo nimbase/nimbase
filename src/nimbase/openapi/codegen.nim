@@ -308,6 +308,15 @@ proc isOptionalField(propName: string; propSchema: Schema; schema: Schema;
   if isRefSchemaNullable(propSchema.refPath, schemas):
     return true
 
+proc isOptionalField(propName: string; propSchema: Schema; required: seq[string];
+                     schemas: OrderedTableRef[string, Schema]): bool =
+  if propName notin required:
+    return true
+  if propSchema.nullable:
+    return true
+  if isRefSchemaNullable(propSchema.refPath, schemas):
+    return true
+
 proc genEnumForQueryParam(param: Parameter; tag: string): string =
   let enumName = safeIdent(pascalSingular(tag) & toPascalCase(param.name) & "Option")
   result = &"  {enumName}* = enum\n"
@@ -320,6 +329,38 @@ proc normIdent(s: string): string =
   ## (case- and underscore-insensitive): lowercase, underscores removed.
   result = s.toLowerAscii
   result = result.replace("_", "")
+
+proc collectAllOfProperties(schema: Schema; schemas: OrderedTableRef[string, Schema];
+    visited: var HashSet[string]; props: var OrderedTableRef[string, Schema];
+    required: var seq[string]) =
+  ## Merge `properties`/`required` from an `allOf` chain into `props`/`required`,
+  ## following `$ref` links into the components schemas table.
+  if schema.isNil:
+    return
+  if schema.refPath.len > 0:
+    let parts = schema.refPath.split("/")
+    let name = parts[^1]
+    let key = normIdent(name)
+    if key notin visited and schemas != nil and schemas.hasKey(name):
+      visited.incl(key)
+      collectAllOfProperties(schemas[name], schemas, visited, props, required)
+    return
+  if not schema.properties.isNil:
+    for propName, propSchema in schema.properties.pairs:
+      props[propName] = propSchema
+  for r in schema.required:
+    if r notin required:
+      required.add(r)
+  for sub in schema.allOf:
+    collectAllOfProperties(sub, schemas, visited, props, required)
+
+proc mergedObjectSchema(schema: Schema; schemas: OrderedTableRef[string, Schema]):
+    tuple[props: OrderedTableRef[string, Schema], required: seq[string]] =
+  ## Resolve an object schema (including `allOf` chains) into its merged
+  ## properties and required fields.
+  result.props = newOrderedTable[string, Schema]()
+  var visited = initHashSet[string]()
+  collectAllOfProperties(schema, schemas, visited, result.props, result.required)
 
 proc enumFieldNameUnique(val: string, enumName: string,
     reserved: HashSet[string]): string =
@@ -347,21 +388,29 @@ proc genTypeDefinition*(schemaName: string, schema: Schema, schemas: OrderedTabl
     let typeName = typeNameOf(typeNames, schemaName)
     result = &"  {typeName}* = ref object of RootObj\n"
     result &= fmtDocComment("    ", schema.description)
-    if not schema.properties.isNil:
-      for propName, propSchema in schema.properties.pairs:
-        let nimName = safeIdent(nimFieldName(propName))
-        let nimType = nimTypeForSchema(propSchema, schemas, typeNames)
-        if isOptionalField(propName, propSchema, schema, schemas):
-          result &= &"    {nimName}*: Option[{nimType}]\n"
-        else:
-          result &= &"    {nimName}*: {nimType}\n"
-        result &= fmtDocComment("      ", propSchema.description)
+    let (props, required) = mergedObjectSchema(schema, schemas)
+    for propName, propSchema in props.pairs:
+      let nimName = safeIdent(nimFieldName(propName))
+      let nimType = nimTypeForSchema(propSchema, schemas, typeNames)
+      if isOptionalField(propName, propSchema, required, schemas):
+        result &= &"    {nimName}*: Option[{nimType}]\n"
+      else:
+        result &= &"    {nimName}*: {nimType}\n"
+      result &= fmtDocComment("      ", propSchema.description)
   of stString:
     if schema.enumValues.len > 0:
       let enumName = schemaNameToEnumName(schemaName)
       result = &"  {enumName}* = enum\n"
       result &= fmtDocComment("    ", schema.description)
+      var seenValues = initHashSet[string]()
       for val in schema.enumValues:
+        # skip duplicate wire values: Nim's string-enum parsing is
+        # underscore/case-insensitive, so values that normalize identically
+        # (e.g. `STAR_TRACK_EXPRESS` / `STARTRACK_EXPRESS`) cannot coexist
+        let key = normIdent(val)
+        if key in seenValues:
+          continue
+        seenValues.incl(key)
         let fieldName = enumFieldNameUnique(val, enumName, reserved)
         result &= &"    {fieldName} = \"{val}\"\n"
     else:
@@ -399,9 +448,10 @@ proc schemasNeedRenames(schemas: OrderedTableRef[string, Schema]): bool =
   if schemas.isNil:
     return false
   for schemaName, schema in schemas.pairs:
-    if schema.isNil or schema.properties.isNil:
+    if schema.isNil:
       continue
-    for propName, propSchema in schema.properties.pairs:
+    let (props, _) = mergedObjectSchema(schema, schemas)
+    for propName in props.keys:
       if nimFieldName(propName) != propName:
         return true
   false
@@ -416,10 +466,11 @@ proc genRenamesCode(schemas: OrderedTableRef[string, Schema]): string =
   let typeNames = computeTypeNames(schemas)
   result = "import ./types\n\n"
   for schemaName, schema in schemas.pairs:
-    if schema.isNil or schema.properties.isNil:
+    if schema.isNil:
       continue
+    let (props, _) = mergedObjectSchema(schema, schemas)
     var renames: seq[tuple[wire, nim: string]]
-    for propName, propSchema in schema.properties.pairs:
+    for propName in props.keys:
       let nimName = nimFieldName(propName)
       if nimName != propName:
         renames.add((propName, nimName))
@@ -844,14 +895,14 @@ proc genDataBuilder(schemaName: string; schema: Schema;
   let qType = qualifier & typeName
   result = &"proc new{typeName}*(): {qType} =\n"
   result &= &"  result = {qType}()\n"
-  if not schema.properties.isNil:
-    for propName, propSchema in schema.properties.pairs:
-      if propName in schema.required and
-          not isOptionalField(propName, propSchema, schema, schemas):
-        let sample = sampleFieldValue(propName, propSchema, schemas, typeNames)
-        if sample.len > 0:
-          let fname = safeIdent(nimFieldName(propName))
-          result &= &"  result.{fname} = {sample}\n"
+  let (props, required) = mergedObjectSchema(schema, schemas)
+  for propName, propSchema in props.pairs:
+    if propName in required and
+        not isOptionalField(propName, propSchema, required, schemas):
+      let sample = sampleFieldValue(propName, propSchema, schemas, typeNames)
+      if sample.len > 0:
+        let fname = safeIdent(nimFieldName(propName))
+        result &= &"  result.{fname} = {sample}\n"
   result &= "\n"
 
 proc genCommonFile(gen: Generator): string =
@@ -905,6 +956,8 @@ proc collectSchemaRefs(schema: Schema; refs: var HashSet[string]) =
     if not schema.properties.isNil:
       for p in schema.properties.values:
         collectSchemaRefs(p, refs)
+    for sub in schema.allOf:
+      collectSchemaRefs(sub, refs)
   of stArray:
     collectSchemaRefs(schema.items, refs)
   else: discard

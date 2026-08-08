@@ -119,7 +119,15 @@ proc sampleJson*(spec: openjson.JsonNode, schema: openjson.JsonNode,
     # `oneOf`/`anyOf` schemas are generated as (empty) object types, so sample
     # an empty object rather than a variant the generated type cannot parse.
     return newJObject()
-  let typ = if resolved.hasKey("type"): resolved["type"].getStr else: "object"
+  let typ = if resolved.hasKey("type"):
+      resolved["type"].getStr
+    elif resolved.hasKey("items"):
+      # schemas without `type` but with `items` are arrays (mirrors codegen)
+      "array"
+    elif resolved.hasKey("enum"):
+      "string"
+    else:
+      "object"
   case typ
   of "object":
     result = newJObject()

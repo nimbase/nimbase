@@ -8,9 +8,11 @@
 when isMainModule:
   # Build the CLI with Kapsis
   import pkg/kapsis
-  import ./nimbase/commands/[kits_cmd, oapi_cmd]
+  import ./nimbase/commands/[kits_cmd, oapi_cmd, scripts_cmd]
 
   initKapsis do:
+    plugins do:
+      dir: "postscripts"
     commands:
       #
       # Build native extensions for other languages
@@ -26,9 +28,24 @@ when isMainModule:
         init:
           ## Initialize a default clue.openapi.config.yaml file
         gen path(spec), string("output"), ?string("--config"), ?bool("-y"):
-          ## Generate a new API client library from OpenAPI 3.x spec file
+          ## Generate a new API client library from OpenAPI 3.x spec file.
+          ## Automatically runs prescripts before and postscripts after.
         mock path(spec), ?string("--host"), ?string("--port"):
           ## Spin up a local mock server from OpenAPI 3.x spec file
+
+      -- "Scripts"
+      prescripts:
+        ## Run pre-generation scripts contributed by kapsis plugins
+        list ?string("--dir"):
+          ## List available prescript commands from plugins in a directory
+        run path(target), ?string("--spec"), ?string("--dir"), ?string("--name"):
+          ## Run prescript commands from plugins in a directory against a target
+      postscripts:
+        ## Run post-generation scripts contributed by kapsis plugins
+        list ?string("--dir"):
+          ## List available postscript commands from plugins in a directory
+        run path(target), ?string("--spec"), ?string("--dir"), ?string("--name"):
+          ## Run postscript commands from plugins in a directory against a target
 
       # -- "Bundlers"
       #   ## Commands for bundling plugins for different package managers

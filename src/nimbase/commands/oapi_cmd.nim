@@ -14,6 +14,7 @@ import ../openapi/specparser
 import ../openapi/codegen
 import ../openapi/cluesettings
 import ../openapi/mockserver
+import ./scripts_cmd
 
 proc derivePkgId(pkg: Package): string =
   if pkg.oapi.isNil: return "client"
@@ -85,6 +86,9 @@ proc openApiGenCommand*(v: Values) =
   if root.isNil:
     return
 
+  # prescripts run before generation
+  discard runScripts(skPre, outputDir, specpath)
+
   try:
     var pkg = Package(
       id: "",
@@ -110,6 +114,10 @@ proc openApiGenCommand*(v: Values) =
 
     let gen = newGenerator(pkg, outputDir, skipPrefixPath, root)
     gen.generate()
+
+    # postscripts run after generation
+    discard runScripts(skPost, outputDir, specpath)
+
     displaySuccess("Client package generated at " & outputDir)
 
   except CatchableError as e:

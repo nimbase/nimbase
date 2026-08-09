@@ -31,7 +31,7 @@ type
   Package* = ref object
     id*, author*, description*, license*, licenseUrl*, url*, outputPath*: string
     version*: semver.Version
-    openApiVersion*: string
+    pkgVersion*: string
     oapi*: OpenApi
     enums*: PackageGlobalEnums
     prefs*: PackagePreferences
@@ -61,7 +61,6 @@ proc parseSpecification*(pkg: Package; root: JsonNode;
 
   if root.hasKey("openapi"):
     pkg.oapi.openapi = root["openapi"].getStr
-    pkg.openApiVersion = pkg.oapi.openapi
 
   if root.hasKey("info") and root["info"].kind == JObject:
     let infoNode = root["info"]

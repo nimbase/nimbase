@@ -138,6 +138,7 @@ proc generateClient(v: Values; specpath, outputDir: string) =
       license: settings.license,
       licenseUrl: settings.licenseUrl,
       url: settings.url,
+      pkgVersion: "0.1.0",
     )
     if pkg.license.len == 0:
       pkg.license = "MIT"
@@ -169,7 +170,7 @@ proc generateClient(v: Values; specpath, outputDir: string) =
       pkg.author = gitName.strip()
 
     if settings.version.len > 0:
-      pkg.openApiVersion = settings.version
+      pkg.pkgVersion = settings.version
 
     let gen = newGenerator(pkg, outputDir,
       settings.prefilters.routePrefix, root, settings.prefilters.stripPrefixModule)

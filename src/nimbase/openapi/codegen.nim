@@ -1211,7 +1211,7 @@ proc generate*(gen: Generator) =
     "nimbase_oauth_auth_url": gen.oauthAuthUrl,
     "nimbase_requires_oauth2": oauth2Require,
     "nimbase_renames_import": renamesImport,
-    "pkgVersion": gen.pkg.openApiVersion,
+    "pkgVersion": gen.pkg.pkgVersion,
     "pkgAuthor": gen.pkg.author,
     "pkgDesc": gen.pkg.description,
     "pkgLicense": gen.pkg.license,

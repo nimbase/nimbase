@@ -54,7 +54,7 @@ author: ""                     # package author (default: `git config user.name`
 license: "MIT"                 # package license (default: MIT)
 licenseUrl: ""                 # license link shown in the generated README
 url: ""                        # package homepage/repo URL shown in the generated README
-version: ""                    # override the generated package version (default: the OpenAPI version)
+version: ""                    # override the generated package version (default: 0.1.0)
 id: ""                         # override the package/module name (default: output dir basename)
 baseUri: ""                    # override the default client base URL (default: spec's first server)
 skipComponentSchemas: false    # skip generating component schemas (same as --skipComponentSchemas)

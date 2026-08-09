@@ -1,0 +1,12 @@
+.DS_Store
+nimcache/
+nimblecache/
+htmldocs/
+testresults/
+.gh-pages/
+/tests/*
+!/tests/*.nim
+!/tests/*.nims
+.env
+/bin/
+build

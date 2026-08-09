@@ -18,6 +18,8 @@ type
     version*: string
     id*: string
     baseUri*: string
+    source*: string
+    repo*: string
     skipComponentSchemas*: Option[bool]
     verbose*: Option[bool]
     generateTests*: Option[bool]
@@ -36,6 +38,8 @@ proc dumpDefaultSettings*(): YAML =
     "version": "",
     "id": "",
     "baseUri": "",
+    "source": "",
+    "repo": "",
     "skipComponentSchemas": false,
     "verbose": false,
     "generateTests": true,

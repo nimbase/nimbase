@@ -34,10 +34,16 @@ proc fmtDocComment(indent: string, desc: string; maxWidth = 80): string =
 const
   stubMetaclient = staticRead("stubs/metaclient.nim")
   stubMetaclientOAuth2 = staticRead("stubs/metaclient_oauth2.nim")
-  stubReadme = staticRead("stubs/readme.md")
   stubNimble = staticRead("stubs/pkg.nimble")
   stubHeader = staticRead("stubs/header.txt")
   stubMockserver = staticRead("mockserver.nim")
+  stubStarterReadme = staticRead("stubs/starter_readme.md")
+  stubStarterGitignore = staticRead("stubs/starter_gitignore")
+  stubStarterLicense = staticRead("stubs/starter_license")
+  stubWorkflowDocs = staticRead("stubs/starter_workflow_docs.yml")
+  stubWorkflowTest = staticRead("stubs/starter_workflow_test.yml")
+  stubWorkflowNimbase = staticRead("stubs/starter_workflow_nimbase.yml")
+  stubExampleBasic = staticRead("stubs/example_basic.nim")
 
 type
   Generator* = ref object
@@ -54,6 +60,8 @@ type
     skipPrefixPath*: string
     stripPrefixModule*: string
     generateTests*: bool = true
+    source*: string
+    repo*: string
     spec*: openjson.JsonNode
 
 proc toPascalCase(s: string): string =
@@ -444,17 +452,25 @@ proc genTypes*(schemas: OrderedTableRef[string, Schema]): string =
     for schemaName, schema in schemas.pairs:
       reserved.incl(normIdent(typeNameOf(typeNames, schemaName)))
       reserved.incl(normIdent(schemaNameToEnumName(schemaName)))
-  result = "import std/[options, json]\n"
-  result &= "\n"
-  result &= "type\n"
+  var body: string
+  body &= "type\n"
   var first = true
   for schemaName, schema in schemas.pairs:
     let typeDef = genTypeDefinition(schemaName, schema, schemas, typeNames, reserved)
     if typeDef.len > 0:
       if not first:
-        result &= "\n"
-      result &= typeDef
+        body &= "\n"
+      body &= typeDef
       first = false
+
+  var stdImports: seq[string]
+  if body.contains("Option["):
+    stdImports.add("options")
+  if body.contains("JsonNode"):
+    stdImports.add("json")
+  result = "import std/[" & stdImports.join(", ") & "]\n"
+  result &= "\n"
+  result &= body
 
 proc schemasNeedRenames(schemas: OrderedTableRef[string, Schema]): bool =
   ## True when any schema object property needs a renameHook mapping (i.e. its
@@ -713,14 +729,7 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
   typeNames: Table[string, string];
   pkgIdent: string;
   skipPrefixPath: sink string = ""; stripPrefixModule: sink string = ""): string =
-  result = stubHeader
-  result &= "import std/[strformat, options, json]\n"
-  result &= "import ./private/metaclient\n"
-  if schemas != nil and schemas.len > 0:
-    result &= "import ./private/types\n"
-  if schemasNeedRenames(schemas):
-    result &= "import ./private/renames\n"
-  result &= "\n"
+  var body: string
 
   var hasTypes = false
   var firstType = true
@@ -736,11 +745,11 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
       let reqType = genRequestType(ep.ident, meth, bodySchema, schemas, typeNames)
       if reqType.len > 0:
         if not hasTypes:
-          result &= "type\n"
+          body &= "type\n"
           hasTypes = true
         if not firstType:
-          result &= "\n"
-        result &= reqType
+          body &= "\n"
+        body &= reqType
         firstType = false
     let successSchema = successResponseSchema(operation)
     if not successSchema.isNil and successSchema.refPath.len == 0 and
@@ -748,11 +757,11 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
       let respType = genResponseType(ep.ident, meth, successSchema, schemas, typeNames)
       if respType.len > 0:
         if not hasTypes:
-          result &= "type\n"
+          body &= "type\n"
           hasTypes = true
         if not firstType:
-          result &= "\n"
-        result &= respType
+          body &= "\n"
+        body &= respType
         firstType = false
 
   var emittedEnums: seq[string]
@@ -765,18 +774,35 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
           let enumDef = genEnumForQueryParam(param, tag)
           if enumDef.len > 0:
             if not hasTypes:
-              result &= "type\n"
+              body &= "type\n"
               hasTypes = true
             if not firstType:
-              result &= "\n"
-            result &= enumDef
+              body &= "\n"
+            body &= enumDef
             firstType = false
 
   if hasTypes:
-    result &= "\n"
+    body &= "\n"
 
   for (path, meth, operation) in ops:
-    result &= genEndpointProc(meth, path, operation, schemas, typeNames, pkgIdent, tag, skipPrefixPath, stripPrefixModule)
+    body &= genEndpointProc(meth, path, operation, schemas, typeNames, pkgIdent, tag, skipPrefixPath, stripPrefixModule)
+
+  var stdImports: seq[string]
+  if body.contains("fmt\""):
+    stdImports.add("strformat")
+  if body.contains("Option["):
+    stdImports.add("options")
+  if body.contains("JsonNode"):
+    stdImports.add("json")
+
+  result = stubHeader
+  if stdImports.len > 0:
+    result &= "import std/[" & stdImports.join(", ") & "]\n"
+  result &= "import ./private/metaclient\n"
+  if body.contains("types."):
+    result &= "import ./private/types\n"
+  result &= "\n"
+  result &= body
 
 proc serverIdent(description, url: string): string =
   let src =
@@ -1076,20 +1102,10 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
   let pkgName = gen.pkgName
   let clientIdent = gen.pkgIdent & "Client"
 
-  result = fillTemplate(stubHeader, {
-    "nimbase_pkg_name": gen.pkgName,
-    "nimbase_pkg_generation_time": gen.genTime,
-    "nimbase_pkg_license": gen.pkg.license,
-  }.toTable)
-  result &= "import std/[asyncdispatch, options, json]\n"
-  result &= "import unittest\n"
-  result &= "import pkg/openparser/json as openjson\n"
-  result &= &"import {pkgName}\n"
-  result &= "import ./common\n\n"
-
+  var body: string
   let qualifier = pkgName & "."
 
-  result &= &"suite \"{tag} serialization\":\n"
+  body &= &"suite \"{tag} serialization\":\n"
   var hasSerTest = false
   var refs = initHashSet[string]()
   for (_, _, operation) in ops:
@@ -1099,10 +1115,10 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
     if gen.schemas != nil and gen.schemas.hasKey(r) and gen.schemas[r] != nil and
         gen.schemas[r].refPath.len == 0 and gen.schemas[r].fieldType == stObject:
       let typeName = typeNameOf(typeNames, r)
-      result &= &"  test \"round-trips {typeName}\":\n"
-      result &= &"    let obj = new{typeName}()\n"
-      result &= &"    check openjson.toJson(openjson.fromJson(openjson.toJson(obj), {qualifier}{typeName})) == openjson.toJson(obj)\n"
-      result &= "\n"
+      body &= &"  test \"round-trips {typeName}\":\n"
+      body &= &"    let obj = new{typeName}()\n"
+      body &= &"    check openjson.toJson(openjson.fromJson(openjson.toJson(obj), {qualifier}{typeName})) == openjson.toJson(obj)\n"
+      body &= "\n"
       hasSerTest = true
 
   var emittedResp = initHashSet[string]()
@@ -1114,17 +1130,17 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
       let typeName = meth.toLowerAscii.toUpperAscii[0] & meth.toLowerAscii[1..^1] & ep.ident & "Response"
       if typeName notin emittedResp:
         emittedResp.incl(typeName)
-        result &= &"  test \"round-trips {typeName}\":\n"
-        result &= &"    let obj = {qualifier}{typeName}()\n"
-        result &= &"    check openjson.toJson(openjson.fromJson(openjson.toJson(obj), {qualifier}{typeName})) == openjson.toJson(obj)\n"
-        result &= "\n"
+        body &= &"  test \"round-trips {typeName}\":\n"
+        body &= &"    let obj = {qualifier}{typeName}()\n"
+        body &= &"    check openjson.toJson(openjson.fromJson(openjson.toJson(obj), {qualifier}{typeName})) == openjson.toJson(obj)\n"
+        body &= "\n"
         hasSerTest = true
 
   if not hasSerTest:
-    result &= "  test \"module imports cleanly\":\n"
-    result &= "    check true\n\n"
+    body &= "  test \"module imports cleanly\":\n"
+    body &= "    check true\n\n"
 
-  result &= &"suite \"{tag} endpoints\":\n"
+  body &= &"suite \"{tag} endpoints\":\n"
   var emitted = 0
   for (path, meth, operation) in ops:
     let ep = genEndpoint(path, gen.skipPrefixPath, gen.stripPrefixModule)
@@ -1163,17 +1179,144 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
       args.add(bodyArg)
     let callArgs = args.join(", ")
     let initArg = if gen.authType == "oauth2": "()" else: "(\"test-key\")"
-    result &= &"  test \"{meth} {path}\":\n"
-    result &= &"    let client = init{clientIdent}{initArg}\n"
-    result &= "    client.baseUri = \"http://127.0.0.1:\" & $int(startMock())\n"
-    result &= &"    discard waitFor client.{procName}({callArgs})\n"
-    result &= "\n"
+    body &= &"  test \"{meth} {path}\":\n"
+    body &= &"    let client = init{clientIdent}{initArg}\n"
+    body &= "    client.baseUri = \"http://127.0.0.1:\" & $int(startMock())\n"
+    body &= &"    discard waitFor client.{procName}({callArgs})\n"
+    body &= "\n"
     inc emitted
 
   if emitted == 0:
-    result &= "  test \"module has no sampleable endpoints\":\n"
-    result &= "    check true\n\n"
+    body &= "  test \"module has no sampleable endpoints\":\n"
+    body &= "    check true\n\n"
 
+  result = fillTemplate(stubHeader, {
+    "nimbase_pkg_name": gen.pkgName,
+    "nimbase_pkg_generation_time": gen.genTime,
+    "nimbase_pkg_license": gen.pkg.license,
+  }.toTable)
+  var stdImports: seq[string]
+  if body.contains("Option["):
+    stdImports.add("options")
+  if body.contains("JsonNode"):
+    stdImports.add("json")
+  result &= "import std/[asyncdispatch"
+  for imp in stdImports:
+    result &= ", " & imp
+  result &= "]\n"
+  result &= "import unittest\n"
+  result &= "import pkg/openparser/json as openjson\n"
+  result &= &"import {pkgName}\n"
+  result &= "import ./common\n\n"
+  result &= body
+
+
+proc countEndpoints(gen: Generator): int =
+  if gen.pkg.oapi.isNil or gen.pkg.oapi.paths.isNil:
+    return
+  for _, pi in gen.pkg.oapi.paths.pairs:
+    if pi.isNil: continue
+    if not pi.get.isNil: inc result
+    if not pi.post.isNil: inc result
+    if not pi.put.isNil: inc result
+    if not pi.delete.isNil: inc result
+    if not pi.patch.isNil: inc result
+    if not pi.options.isNil: inc result
+    if not pi.head.isNil: inc result
+    if not pi.trace.isNil: inc result
+
+proc genRepoFeatures(gen: Generator; modules: int): string =
+  let title =
+    if not gen.pkg.oapi.isNil and gen.pkg.oapi.info.title.len > 0:
+      gen.pkg.oapi.info.title
+    else:
+      gen.pkgIdent
+  result = "- Typed client for " & title & " (" & $countEndpoints(gen) & " endpoints)\n"
+  if gen.authType == "oauth2":
+    result &= "- OAuth2 authentication with token refresh\n"
+  else:
+    result &= "- Bearer-token authentication\n"
+  if gen.generateTests and not gen.spec.isNil:
+    result &= "- Mock-server backed test suite\n"
+  result &= "- Async-first, generated with Nimbase\n"
+
+proc sampleableCall(gen: Generator;
+    groups: OrderedTableRef[string, seq[tuple[path: string, meth: string, operation: Operation]]];
+    typeNames: Table[string, string]): tuple[procName, args: string] =
+  ## The first endpoint across the package that can be called with plain sample
+  ## arguments (mirroring the generated tests), skipping endpoints that need
+  ## fixture builders (`new<Type>()`) — those only exist in the test harness.
+  ## Returns "" when none exist.
+  for tag, ops in groups.pairs:
+    for (path, meth, operation) in ops:
+      let ep = genEndpoint(path, gen.skipPrefixPath, gen.stripPrefixModule)
+      let procName = meth.toLowerAscii & ep.ident
+      var args: seq[string]
+      var skip = false
+      for param in operation.parameters:
+        if param.isNil: continue
+        case param.kind
+        of pinPath, pinQuery:
+          let sample = sampleParamArg(param, tag, gen.schemas, typeNames)
+          if sample.len == 0 or sample.startsWith("new"):
+            skip = true
+            break
+          args.add(sample)
+        else: discard
+      if skip: continue
+      var bodyArg = ""
+      if not operation.requestBody.isNil and not operation.requestBody.content.isNil:
+        for mediaType, mt in operation.requestBody.content.pairs:
+          if mediaType == "application/json" and not mt.schema.isNil:
+            if mt.schema.refPath.len > 0:
+              let parts = mt.schema.refPath.split("/")
+              let target =
+                if gen.schemas != nil and gen.schemas.hasKey(parts[^1]): gen.schemas[parts[^1]]
+                else: nil
+              if target != nil and target.fieldType == stObject:
+                skip = true  # body needs a fixture builder
+              else:
+                skip = true
+            elif mt.schema.fieldType == stObject and not mt.schema.properties.isNil:
+              skip = true  # inline private request type
+            break
+      if skip: continue
+      if bodyArg.len > 0:
+        args.add(bodyArg)
+      return (procName, args.join(", "))
+
+proc genExampleBody(gen: Generator;
+    groups: OrderedTableRef[string, seq[tuple[path: string, meth: string, operation: Operation]]];
+    typeNames: Table[string, string]): string =
+  let initArg =
+    if gen.authType == "oauth2": "()"
+    else: "(\"your-api-key\")"
+  let baseUri = gen.baseUri
+  let call = sampleableCall(gen, groups, typeNames)
+  if call.procName.len > 0:
+    result = "  let client = init" & gen.pkgIdent & "Client" & initArg & "\n"
+    if baseUri.len > 0:
+      result &= "  client.baseUri = \"" & baseUri & "\"\n"
+    result &= "  try:\n"
+    result &= "    let res = await client." & call.procName & "(" & call.args & ")\n"
+    result &= "    echo res\n"
+    result &= "  except CatchableError as e:\n"
+    result &= "    echo \"request failed: \", e.msg\n"
+  else:
+    result = "  let client = init" & gen.pkgIdent & "Client" & initArg & "\n"
+    if baseUri.len > 0:
+      result &= "  client.baseUri = \"" & baseUri & "\"\n"
+    result &= "  echo \"client ready — see the docs for the available endpoints\"\n"
+
+proc genNimbaseCommand(gen: Generator): string =
+  ## The regeneration command embedded in `.github/workflows/nimbase.yml`.
+  let outArg = "$tmp/" & gen.pkgName
+  if gen.source.len == 0:
+    result = "# TODO: set `source` in nimbase.oapi.config.yaml to enable regeneration"
+  elif gen.source.contains("://"):
+    result = "nimbase oapi.gen \"" & gen.source & "\" \"" & outArg & "\""
+  else:
+    result = "nimbase oapi.gurugen \"" & gen.source & "\" \"" & outArg & "\""
 
 proc generate*(gen: Generator) =
   let srcDir = gen.outputDir / "src"
@@ -1196,9 +1339,44 @@ proc generate*(gen: Generator) =
   let renamesImport =
     if renamesCode.len > 0: "import ./renames\n"
     else: ""
+  let renamesExport =
+    if renamesCode.len > 0: "export renames\n"
+    else: ""
+
+  var hasServers = false
+  if not gen.pkg.oapi.isNil and gen.pkg.oapi.servers.len > 1:
+    let serversCode = genServers(gen.pkg.oapi.servers)
+    writeFile(privateDir / "server_urls.nim", serversCode)
+    hasServers = true
+
+  let groups = groupOperations(gen.pkg, gen.stripPrefixModule)
+  let typeNames = computeTypeNames(gen.schemas)
+  let repoName =
+    if gen.repo.len > 0: gen.repo
+    else: gen.pkgName
+  let pkgTitle =
+    if not gen.pkg.oapi.isNil and gen.pkg.oapi.info.title.len > 0:
+      gen.pkg.oapi.info.title
+    else:
+      gen.pkgIdent
+  let features = genRepoFeatures(gen, if groups.isNil: 0 else: groups.len)
+  let exampleBody = genExampleBody(gen, groups, typeNames)
+  let readmeExample =
+    "```nim\n" &
+    "import " & gen.pkgName & "\n" &
+    "import std/asyncdispatch\n\n" &
+    "proc main() {.async.} =\n" &
+    exampleBody &
+    "\nwhen isMainModule:\n" &
+    "  waitFor main()\n" &
+    "```\n"
+  let regenSource =
+    if gen.source.len > 0: gen.source
+    else: "the upstream OpenAPI 3.x specification"
 
   let vars = {
     "nimbase_pkg_name": gen.pkgName,
+    "nimbase_pkg_title": pkgTitle,
     "nimbase_client_ident": gen.pkgIdent & "Client",
     "nimbase_client_ident_error": gen.pkgIdent & "ClientError",
     "nimbase_pkg_generation_time": gen.genTime,
@@ -1211,6 +1389,13 @@ proc generate*(gen: Generator) =
     "nimbase_oauth_auth_url": gen.oauthAuthUrl,
     "nimbase_requires_oauth2": oauth2Require,
     "nimbase_renames_import": renamesImport,
+    "nimbase_renames_export": renamesExport,
+    "nimbase_repo_name": repoName,
+    "nimbase_repo_features": features,
+    "nimbase_repo_examples": readmeExample,
+    "nimbase_example_body": exampleBody,
+    "nimbase_gen_command": genNimbaseCommand(gen),
+    "nimbase_regen_source": regenSource,
     "pkgVersion": gen.pkg.pkgVersion,
     "pkgAuthor": gen.pkg.author,
     "pkgDesc": gen.pkg.description,
@@ -1221,7 +1406,6 @@ proc generate*(gen: Generator) =
     if gen.authType == "oauth2": stubMetaclientOAuth2
     else: stubMetaclient
   writeFile(privateDir / "metaclient.nim", fillTemplate(metaclientStub, vars))
-  writeFile(gen.outputDir / "README.md", fillTemplate(stubReadme, vars))
 
   if not gen.schemas.isNil and gen.schemas.len > 0:
     let typesCode = genTypes(gen.schemas)
@@ -1230,15 +1414,21 @@ proc generate*(gen: Generator) =
   if renamesCode.len > 0:
     writeFile(privateDir / "renames.nim", renamesCode)
 
-  var hasServers = false
-  if not gen.pkg.oapi.isNil and gen.pkg.oapi.servers.len > 1:
-    let serversCode = genServers(gen.pkg.oapi.servers)
-    writeFile(privateDir / "server_urls.nim", serversCode)
-    hasServers = true
+  # starter scaffolding: workflows, gitignore, license, README, examples
+  let ghDir = gen.outputDir / ".github/workflows"
+  ensureDir(ghDir)
+  writeFile(ghDir / "docs.yml", fillTemplate(stubWorkflowDocs, vars))
+  writeFile(ghDir / "test.yml", fillTemplate(stubWorkflowTest, vars))
+  writeFile(ghDir / "nimbase.yml", fillTemplate(stubWorkflowNimbase, vars))
+  writeFile(gen.outputDir / ".gitignore", stubStarterGitignore)
+  writeFile(gen.outputDir / "LICENSE", stubStarterLicense)
+  writeFile(gen.outputDir / "README.md", fillTemplate(stubStarterReadme, vars))
+  let examplesDir = gen.outputDir / "examples"
+  ensureDir(examplesDir)
+  writeFile(examplesDir / "config.nims", "switch(\"path\", \"$projectDir/../src\")\nswitch(\"define\", \"ssl\")\n")
+  writeFile(examplesDir / "basic.nim", fillTemplate(stubExampleBasic, vars))
 
-  let groups = groupOperations(gen.pkg, gen.stripPrefixModule)
   if not groups.isNil:
-    let typeNames = computeTypeNames(gen.schemas)
     for tag, ops in groups.pairs:
       let fileName = tag & ".nim"
       let endpointCode = fillTemplate(genEndpointFile(tag, ops, gen.schemas, typeNames, gen.pkgIdent, gen.skipPrefixPath, gen.stripPrefixModule), vars)

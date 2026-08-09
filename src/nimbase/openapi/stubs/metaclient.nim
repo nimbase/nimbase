@@ -13,6 +13,7 @@ import pkg/openparser/json
 {nimbase_renames_import}
 
 export asyncdispatch, httpclient, json, tables, sequtils, times
+{nimbase_renames_export}
 
 type
   {nimbase_client_ident}* = ref object of RootObj

@@ -1,0 +1,55 @@
+# NimbaseBot workflow
+#
+# The {nimbase_pkg_name} client is a single package living at the repo root and
+# is generated from the upstream spec ({nimbase_regen_source}). This workflow
+# regenerates it from the upstream spec on a nightly schedule (or manually),
+# bumps the version (from the latest git tag), commits, tags and releases.
+# Testing happens in the repo's own test.yml workflow, which the bot's commits
+# re-trigger.
+#
+# Setup:
+#   1. Works out of the box with GITHUB_TOKEN (no secrets needed). Optionally
+#      add a bot PAT as `BOT_TOKEN` so the bot's pushes re-trigger the dependent
+#      test/docs workflows.
+#   2. Ensure an initial tag exists matching the root {nimbase_pkg_name}.nimble version.
+
+name: nimbase
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '{nimbase_pkg_name}.nimble'
+      - 'nimbase.oapi.config.yaml'
+      - '.github/workflows/nimbase.yml'
+  schedule:
+    - cron: '0 3 * * *'   # nightly re-check for upstream spec changes
+  workflow_dispatch:
+
+concurrency:
+  group: nimbase
+  cancel-in-progress: false
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: nimbase/nimbase-bot@v1
+        with:
+          # token is optional; defaults to GITHUB_TOKEN. Pass secrets.BOT_TOKEN
+          # to re-trigger dependent test/docs workflows.
+          # Generate the client into a temp dir and copy the generated sources
+          # over the repo root. {nimbase_pkg_name}.nimble is left untouched so
+          # the version bump keeps progressing across releases.
+          gen-command: |
+            tmp="$(mktemp -d)"
+            {nimbase_gen_command}
+            cp -R "$tmp/{nimbase_pkg_name}/src" .
+            cp -R "$tmp/{nimbase_pkg_name}/tests" .
+            rm -rf "$tmp"

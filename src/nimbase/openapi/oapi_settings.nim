@@ -20,6 +20,7 @@ type
     baseUri*: string
     source*: string
     repo*: string
+    generator*: string
     skipComponentSchemas*: Option[bool]
     verbose*: Option[bool]
     generateTests*: Option[bool]
@@ -40,6 +41,7 @@ proc dumpDefaultSettings*(): YAML =
     "baseUri": "",
     "source": "",
     "repo": "",
+    "generator": "",
     "skipComponentSchemas": false,
     "verbose": false,
     "generateTests": true,

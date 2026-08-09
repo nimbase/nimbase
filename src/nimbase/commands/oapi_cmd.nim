@@ -177,6 +177,7 @@ proc generateClient(v: Values; specpath, outputDir: string) =
     gen.generateTests = settings.generateTests.get(true)
     gen.source = settings.source
     gen.repo = settings.repo
+    gen.generator = settings.generator
     if settings.baseUri.len > 0:
       gen.baseUri = settings.baseUri
     gen.generate()

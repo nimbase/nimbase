@@ -62,6 +62,7 @@ type
     generateTests*: bool = true
     source*: string
     repo*: string
+    generator*: string
     spec*: openjson.JsonNode
 
 proc toPascalCase(s: string): string =
@@ -1309,14 +1310,27 @@ proc genExampleBody(gen: Generator;
     result &= "  echo \"client ready — see the docs for the available endpoints\"\n"
 
 proc genNimbaseCommand(gen: Generator): string =
-  ## The regeneration command embedded in `.github/workflows/nimbase.yml`.
-  let outArg = "$tmp/" & gen.pkgName
-  if gen.source.len == 0:
+  ## The full `gen-command` block embedded in `.github/workflows/nimbase.yml`.
+  ## When `generator` is set it is used verbatim; otherwise a default flow
+  ## generates into a temp dir and copies only `src`/`tests` over the repo root.
+  ## Lines are indented to match the YAML block scalar (`gen-command: |`).
+  let indent = "            "
+  if gen.generator.len > 0:
+    result = gen.generator
+  elif gen.source.len == 0:
     result = "# TODO: set `source` in nimbase.oapi.config.yaml to enable regeneration"
-  elif gen.source.contains("://"):
-    result = "nimbase oapi.gen \"" & gen.source & "\" \"" & outArg & "\""
   else:
-    result = "nimbase oapi.gurugen \"" & gen.source & "\" \"" & outArg & "\""
+    let outArg = "$tmp/" & gen.pkgName
+    let genCmd =
+      if gen.source.contains("://"):
+        "nimbase oapi.gen \"" & gen.source & "\" \"" & outArg & "\""
+      else:
+        "nimbase oapi.gurugen \"" & gen.source & "\" \"" & outArg & "\""
+    result = "tmp=\"$(mktemp -d)\"\n" &
+      indent & genCmd & "\n" &
+      indent & "cp -R \"$tmp/" & gen.pkgName & "/src\" .\n" &
+      indent & "cp -R \"$tmp/" & gen.pkgName & "/tests\" .\n" &
+      indent & "rm -rf \"$tmp\""
 
 proc generate*(gen: Generator) =
   let srcDir = gen.outputDir / "src"

@@ -44,12 +44,7 @@ jobs:
         with:
           # token is optional; defaults to GITHUB_TOKEN. Pass secrets.BOT_TOKEN
           # to re-trigger dependent test/docs workflows.
-          # Generate the client into a temp dir and copy the generated sources
-          # over the repo root. {nimbase_pkg_name}.nimble is left untouched so
-          # the version bump keeps progressing across releases.
+          # Regeneration only ever replaces the generated src/ and tests/ dirs;
+          # every other file in the repo is left untouched.
           gen-command: |
-            tmp="$(mktemp -d)"
             {nimbase_gen_command}
-            cp -R "$tmp/{nimbase_pkg_name}/src" .
-            cp -R "$tmp/{nimbase_pkg_name}/tests" .
-            rm -rf "$tmp"

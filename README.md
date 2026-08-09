@@ -57,6 +57,9 @@ url: ""                        # package homepage/repo URL shown in the generate
 version: ""                    # override the generated package version (default: 0.1.0)
 id: ""                         # override the package/module name (default: output dir basename)
 baseUri: ""                    # override the default client base URL (default: spec's first server)
+source: ""                     # spec source used by the generated nimbase.yml (guru key → gurugen, URL/path → oapi.gen)
+repo: ""                       # GitHub repo name for the generated README badges/links (default: package name)
+generator: ""                  # custom regeneration command for the generated nimbase.yml (e.g. ./scripts/gen.sh)
 skipComponentSchemas: false    # skip generating component schemas (same as --skipComponentSchemas)
 verbose: false                 # verbose generation output
 generateTests: true            # generate the tests/ suite (mock server + per-module tests)

@@ -12,22 +12,16 @@
 
 ## Features
 - OpenAPI 3.x HTTP client generator from `JSON`/`YAML`/`URL` OAPI spec
-- Mock server, spin up a local mock server from an OpenAPI 3.x spec
-- Generate nimble tests from OAPI 3.x spec
+  - Nimbase OAPI configurator via `nimbase.oapi.config.yaml`
+  - Mock server, spin up a local mock server from an OAPI 3.x spec
+  - Generate nimble tests from OAPI 3.x spec
 - Generate native extensions from Nim code to Python, Lua, Ruby, PHP, NodeJS (or any NAPI-compatible JS runtimes)
 - Generate low-level Nim wrappers from C/C++
 - Generate Bindings from Nim to Go, Python, Rust, Zig, D, and more
 
-> [!NOTE]
-> Nimbase used to be part of the [Clue](https://github.com/openpeeps/clue) package.
-> Clue now focuses on local package management; this codebase carries on
-> everything related to generating native libraries, C wrappers and OpenAPI
-> clients.
+### OpenAPI 3.x codegen
 
-## OpenAPI 3.x codegen
-
-Generate a typed Nim client library from any OpenAPI 3.0 spec — JSON, YAML or a
-remote URL:
+OAPI 3.x CLI commands:
 
 ```sh
 nimbase oapi.init                            # create a nimbase.oapi.config.yaml
@@ -86,10 +80,9 @@ directly from the CLI.
 - [ ] Package generator — bundling & publishing for `npm`, PyPI, `composer`, `gem`
 - [ ] API bindings — generate header files for C, C++, D, Crystal, Dart, Zig, Rust and more
 
-### ❤ Contributions & Support
+### Contributions & Support
 - 🐛 Found a bug? [Create a new Issue](https://github.com/nimbase/nimbase/issues)
 - 👋 Wanna help? [Fork it!](https://github.com/nimbase/nimbase/fork)
 
-### 🎩 License
-Nimbase | MIT license. [Made by humans from OpenPeeps](https://github.com/openpeeps).<br>
-Copyright OpenPeeps & Contributors &mdash; All rights reserved.
+### License
+MIT license.

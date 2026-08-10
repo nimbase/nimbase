@@ -52,7 +52,6 @@ type
     pkgName*: string
     pkgIdent*: string
     baseUri*: string
-    genTime*: string
     schemas*: OrderedTableRef[string, Schema]
     authType*: string
     oauthTokenUrl*: string
@@ -887,7 +886,6 @@ proc newGenerator*(pkg: Package, outputDir: string, skipPrefixPath = "";
   result.outputDir = outputDir
   result.pkgName = if pkg.id.len > 0: pkg.id else: "client"
   result.pkgIdent = toPascalCase(result.pkgName)
-  result.genTime = $now()
   result.authType = "bearer"
   result.skipPrefixPath = skipPrefixPath
   result.stripPrefixModule = stripPrefixModule
@@ -985,7 +983,6 @@ proc genCommonFile(gen: Generator): string =
   let qualifier = gen.pkgName & "."
   result = fillTemplate(stubHeader, {
     "nimbase_pkg_name": gen.pkgName,
-    "nimbase_pkg_generation_time": gen.genTime,
     "nimbase_pkg_license": gen.pkg.license,
   }.toTable)
   result &= "import std/net\n"
@@ -1193,7 +1190,6 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
 
   result = fillTemplate(stubHeader, {
     "nimbase_pkg_name": gen.pkgName,
-    "nimbase_pkg_generation_time": gen.genTime,
     "nimbase_pkg_license": gen.pkg.license,
   }.toTable)
   var stdImports: seq[string]
@@ -1393,7 +1389,6 @@ proc generate*(gen: Generator) =
     "nimbase_pkg_title": pkgTitle,
     "nimbase_client_ident": gen.pkgIdent & "Client",
     "nimbase_client_ident_error": gen.pkgIdent & "ClientError",
-    "nimbase_pkg_generation_time": gen.genTime,
     "nimbase_pkg_license": gen.pkg.license,
     "nimbase_pkg_desc": gen.pkg.description,
     "nimbase_pkg_url": (if gen.pkg.url.len > 0: gen.pkg.url & "\n" else: ""),

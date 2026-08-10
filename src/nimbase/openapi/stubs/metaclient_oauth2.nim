@@ -3,7 +3,6 @@
 # Auto-generated from OpenAPI 3.x specification
 # using the awesome [Nimbase CLI](https://github.com/nimbase/nimbase)
 #
-# Generated at: {nimbase_pkg_generation_time}
 # License: {nimbase_pkg_license}
 
 import std/[asyncdispatch, httpclient, tables,

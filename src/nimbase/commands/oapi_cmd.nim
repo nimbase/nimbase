@@ -68,6 +68,64 @@ proc loadOpenApiSpec(specpath: string): openjson.JsonNode =
   else:
     displayError("Spec file not found: " & specpath)
 
+proc rawSpecContent(specpath: string): string =
+  ## Raw spec bytes from a local file or URL ("" on failure).
+  if specpath.fileExists:
+    result = readFile(specpath)
+  elif specpath.startsWith("http://") or specpath.startsWith("https://"):
+    result = fetchHttpContent(specpath)
+
+proc resolveSpecUrl(apiName: string; specVersion = ""): string =
+  ## Resolve the apis.guru swaggerUrl for an API identifier, e.g. "hetzner.cloud".
+  ## Returns "" when the API or version cannot be resolved.
+  let listContent = fetchHttpContent(guruListUrl)
+  if listContent.len == 0:
+    return ""
+  var list: openjson.JsonNode
+  try:
+    list = openjson.fromJson(listContent)
+  except CatchableError as e:
+    displayError("Failed to parse apis.guru list: " & e.msg)
+    return ""
+
+  if list.isNil or not list.hasKey(apiName):
+    displayError("API not found in apis.guru: " & apiName)
+    var suggestions: seq[tuple[name: string, dist: int]]
+    for k in list.keys:
+      suggestions.add((k, editDistance(k, apiName)))
+    suggestions.sort(proc(a, b: tuple[name: string, dist: int]): int = cmp(a.dist, b.dist))
+    if suggestions.len > 0:
+      var top: seq[string]
+      for s in suggestions[0 .. min(2, suggestions.high)]:
+        top.add(s.name)
+      displayInfo("Did you mean: " & top.join(", "))
+    return ""
+
+  let entry = list[apiName]
+  var version = specVersion
+  if version.len == 0 and entry.hasKey("preferred"):
+    version = entry["preferred"].getStr
+  if version.len == 0 and entry.hasKey("versions") and entry["versions"].kind == JObject:
+    for vk in entry["versions"].keys:
+      version = vk
+      break
+
+  if entry.isNil or entry["versions"].isNil or entry["versions"].kind != JObject or
+      not entry["versions"].hasKey(version):
+    displayError("Version not found for " & apiName & ": " & version)
+    var vs: seq[string]
+    if entry["versions"].kind == JObject:
+      for vk in entry["versions"].keys:
+        vs.add(vk)
+    displayInfo("Available versions: " & vs.join(", "))
+    return ""
+
+  let versionInfo = entry["versions"][version]
+  if versionInfo.isNil or not versionInfo.hasKey("swaggerUrl"):
+    displayError("No spec URL found for " & apiName & " v" & version)
+    return ""
+  result = versionInfo["swaggerUrl"].getStr
+
 proc shortDescription(desc: string): string =
   ## A short, single-line package description from the spec's `info.description`
   ## (first non-heading sentence, markdown stripped, capped), falling back to a
@@ -126,6 +184,18 @@ proc generateClient(v: Values; specpath, outputDir: string) =
   let root = loadOpenApiSpec(specpath)
   if root.isNil:
     return
+
+  if v.has("--save-spec"):
+    let savePath = v.get("--save-spec").getStr
+    if savePath.len > 0:
+      let raw = rawSpecContent(specpath)
+      if raw.len > 0:
+        let parent = savePath.parentDir
+        if parent.len > 0:
+          createDir(parent)
+        writeFile(savePath, raw)
+      else:
+        displayWarning("Could not fetch raw spec for --save-spec: " & savePath)
 
   # prescripts run before generation
   discard runScripts(skPre, outputDir, specpath)
@@ -200,58 +270,56 @@ proc oapiGurugenCommand*(v: Values) =
   ## Generate a client library from an apis.guru API, e.g. "stripe.com"
   let apiName = v.get("apiName").getStr
   let outputDir = v.get("output").getStr
-
-  let listContent = fetchHttpContent(guruListUrl)
-  if listContent.len == 0:
+  let specVersion =
+    if v.has("--spec-version"): v.get("--spec-version").getStr
+    else: ""
+  let swaggerUrl = resolveSpecUrl(apiName, specVersion)
+  if swaggerUrl.len == 0:
     return
-  var list: openjson.JsonNode
-  try:
-    list = openjson.fromJson(listContent)
-  except:
-    displayError("Failed to parse apis.guru list: " & getCurrentExceptionMsg())
-    return
-
-  if list.isNil or not list.hasKey(apiName):
-    displayError("API not found in apis.guru: " & apiName)
-    var suggestions: seq[tuple[name: string, dist: int]]
-    for k in list.keys:
-      suggestions.add((k, editDistance(k, apiName)))
-    suggestions.sort(proc(a, b: tuple[name: string, dist: int]): int = cmp(a.dist, b.dist))
-    if suggestions.len > 0:
-      var top: seq[string]
-      for s in suggestions[0 .. min(2, suggestions.high)]:
-        top.add(s.name)
-      displayInfo("Did you mean: " & top.join(", "))
-    return
-
-  let entry = list[apiName]
-  var version = ""
-  if entry.hasKey("preferred"):
-    version = entry["preferred"].getStr
-  if v.has("--spec-version"):
-    version = v.get("--spec-version").getStr
-  if version.len == 0 and entry.hasKey("versions") and entry["versions"].kind == JObject:
-    for vk in entry["versions"].keys:
-      version = vk
-      break
-
-  if entry.isNil or entry["versions"].isNil or entry["versions"].kind != JObject or
-      not entry["versions"].hasKey(version):
-    displayError("Version not found for " & apiName & ": " & version)
-    var vs: seq[string]
-    if entry["versions"].kind == JObject:
-      for vk in entry["versions"].keys:
-        vs.add(vk)
-    displayInfo("Available versions: " & vs.join(", "))
-    return
-
-  let versionInfo = entry["versions"][version]
-  if versionInfo.isNil or not versionInfo.hasKey("swaggerUrl"):
-    displayError("No spec URL found for " & apiName & " v" & version)
-    return
-  let swaggerUrl = versionInfo["swaggerUrl"].getStr
-
   generateClient(v, swaggerUrl, outputDir)
+
+proc oapiDiffCommand*(v: Values) =
+  ## Compare a remote OpenAPI spec (URL or apis.guru id) with a local spec file.
+  ## Exit code: 0 identical, 1 different, 2 error.
+  let remote = v.get("remote").getStr
+  let local = v.get("local").getStr
+
+  if not local.fileExists:
+    displayError("Local spec file not found: " & local)
+    quit(2)
+  if not (local.endsWith(".json") or local.endsWith(".yaml") or local.endsWith(".yml")):
+    displayError("Unsupported local spec format (expected .json/.yaml/.yml): " & local)
+    quit(2)
+
+  let remoteUrl =
+    if remote.startsWith("http://") or remote.startsWith("https://"):
+      remote
+    else:
+      resolveSpecUrl(remote)
+  if remoteUrl.len == 0:
+    quit(2)
+
+  let remoteContent = fetchHttpContent(remoteUrl)
+  if remoteContent.len == 0:
+    quit(2)
+
+  var remoteNode, localNode: openjson.JsonNode
+  try:
+    remoteNode = openjson.fromJson(remoteContent)
+    localNode = openjson.fromJson(readFile(local))
+  except CatchableError as e:
+    displayError("Failed to parse spec: " & e.msg)
+    quit(2)
+  if remoteNode.isNil or localNode.isNil:
+    displayError("Failed to parse spec")
+    quit(2)
+
+  if remoteNode == localNode:
+    displayInfo("Specs are identical: " & local)
+    quit(0)
+  else:
+    displayInfo("Specs differ: " & local)
+    quit(1)
 
 proc oapiInitCommand*(v: Values) =
   ## Create nimbase.oapi.config.yaml

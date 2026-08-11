@@ -32,6 +32,7 @@ proc fmtDocComment(indent: string, desc: string; maxWidth = 80): string =
         result &= &"{indent}## {wLine.strip}\n"
 
 const
+  nimbaseOpenparserVersion = "0.1.9"
   stubMetaclient = staticRead("stubs/metaclient.nim")
   stubMetaclientOAuth2 = staticRead("stubs/metaclient_oauth2.nim")
   stubNimble = staticRead("stubs/pkg.nimble")
@@ -1399,6 +1400,7 @@ proc generate*(gen: Generator) =
     "nimbase_oauth_token_url": gen.oauthTokenUrl,
     "nimbase_oauth_auth_url": gen.oauthAuthUrl,
     "nimbase_requires_oauth2": oauth2Require,
+    "nimbase_openparser_version": nimbaseOpenparserVersion,
     "nimbase_renames_import": renamesImport,
     "nimbase_renames_export": renamesExport,
     "nimbase_repo_name": repoName,

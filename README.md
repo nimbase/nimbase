@@ -57,6 +57,7 @@ generator: ""                  # custom regeneration command for the generated n
 skipComponentSchemas: false    # skip generating component schemas (same as --skipComponentSchemas)
 verbose: false                 # verbose generation output
 generateTests: true            # generate the tests/ suite (mock server + per-module tests)
+generateExamples: false        # emit a runnable_examples.yml workflow (opencode agent, manual dispatch)
 prefilters:
   routePrefix: ""              # strip a leading path prefix from endpoint idents
   stripPrefixModule: ""        # strip a common prefix from generated module names

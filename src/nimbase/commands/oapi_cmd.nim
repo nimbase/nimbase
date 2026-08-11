@@ -245,6 +245,7 @@ proc generateClient(v: Values; specpath, outputDir: string) =
     let gen = newGenerator(pkg, outputDir,
       settings.prefilters.routePrefix, root, settings.prefilters.stripPrefixModule)
     gen.generateTests = settings.generateTests.get(true)
+    gen.generateExamples = settings.generateExamples.get(false)
     gen.source = settings.source
     gen.repo = settings.repo
     gen.generator = settings.generator

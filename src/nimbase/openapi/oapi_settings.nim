@@ -24,6 +24,7 @@ type
     skipComponentSchemas*: Option[bool]
     verbose*: Option[bool]
     generateTests*: Option[bool]
+    generateExamples*: Option[bool]
     prefilters*: PreFilters
 
 proc parseOApiSettings*(yamlContent: string): OApiSettings =
@@ -45,6 +46,7 @@ proc dumpDefaultSettings*(): YAML =
     "skipComponentSchemas": false,
     "verbose": false,
     "generateTests": true,
+    "generateExamples": false,
     "prefilters": {
       "routePrefix": "",
       "stripPrefixModule": ""

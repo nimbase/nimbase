@@ -1,0 +1,37 @@
+# NimbaseBot — runnable examples workflow
+#
+# Manually triggered (workflow_dispatch): installs opencode, starts a headless
+# opencode server, and uses the generated opencode HTTP client to ask an agent
+# (deepseek-v4-flash) to create a ./examples directory with runnable examples
+# for this Nim HTTP client package. The resulting examples are committed.
+#
+# The opencode_api_key is entered in the GitHub Actions form when dispatching.
+
+name: runnable-examples
+
+on:
+  workflow_dispatch:
+    inputs:
+      opencode_api_key:
+        description: 'OpenCode API key'
+        required: true
+
+concurrency:
+  group: runnable-examples
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: nimbase/nimbase-bot/runnable-examples@v1
+        with:
+          opencode_api_key: ${{ inputs.opencode_api_key }}
+          # provider: opencode-go     # provider id configured in opencode
+          # model: deepseek-v4-flash  # model id for the agent

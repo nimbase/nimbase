@@ -43,6 +43,7 @@ const
   stubWorkflowDocs = staticRead("stubs/starter_workflow_docs.yml")
   stubWorkflowTest = staticRead("stubs/starter_workflow_test.yml")
   stubWorkflowNimbase = staticRead("stubs/starter_workflow_nimbase.yml")
+  stubWorkflowRunnableExamples = staticRead("stubs/starter_workflow_runnable_examples.yml")
   stubExampleBasic = staticRead("stubs/example_basic.nim")
 
 type
@@ -59,6 +60,7 @@ type
     skipPrefixPath*: string
     stripPrefixModule*: string
     generateTests*: bool = true
+    generateExamples*: bool = false
     source*: string
     repo*: string
     generator*: string
@@ -1429,6 +1431,8 @@ proc generate*(gen: Generator) =
   writeFile(ghDir / "docs.yml", fillTemplate(stubWorkflowDocs, vars))
   writeFile(ghDir / "test.yml", fillTemplate(stubWorkflowTest, vars))
   writeFile(ghDir / "nimbase.yml", fillTemplate(stubWorkflowNimbase, vars))
+  if gen.generateExamples:
+    writeFile(ghDir / "runnable_examples.yml", fillTemplate(stubWorkflowRunnableExamples, vars))
   writeFile(gen.outputDir / ".gitignore", stubStarterGitignore)
   writeFile(gen.outputDir / "LICENSE", stubStarterLicense)
   writeFile(gen.outputDir / "README.md", fillTemplate(stubStarterReadme, vars))

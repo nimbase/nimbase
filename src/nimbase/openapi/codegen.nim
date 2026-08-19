@@ -152,7 +152,7 @@ proc paramIdent(name: string): string =
 proc enumFieldName(val: string): string =
   ## A valid Nim enum field identifier for an enum value: camelCase,
   ## sanitized (`2EBOX` -> `f2EBOX`, `4_72` -> `f472`).
-  sanitizeIdent(toCamelCase(val))
+  sanitizeIdent(toCamelCase(safeIdent(val)))
 
 proc toModuleName(tag: string): string =
   ## Convert an arbitrary tag/group name into a valid Nim module identifier:

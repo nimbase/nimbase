@@ -293,8 +293,7 @@ proc paramIsSimpleArray(param: Parameter): bool =
     param.schema.items != nil and param.schema.items.enumValues.len == 0
 
 proc enumParamNimType(param: Parameter; tag: string): string =
-  let enumName = safeIdent(pascalSingular(tag) & toPascalCase(param.name) & "Option")
-  "set[" & enumName & "]"
+  safeIdent(pascalSingular(tag) & toPascalCase(param.name) & "Option")
 
 proc enumParamDefault(param: Parameter; tag: string): string =
   if paramHasEnum(param): "{}"
@@ -626,22 +625,30 @@ proc genEndpointProc(httpMeth: string; path: string; operation: Operation;
   for param in operation.parameters:
     if param.isNil: continue
     let paramName = paramIdent(param.name)
-    let nimType = nimTypeForSchema(param.schema, schemas, typeNames, qualify = true)
+    let nimType = nimTypeForSchema(param.schema, schemas, typeNames, qualify = true, typeNameHint = toPascalCase(param.name))
     case param.kind
     of pinPath:
       paramStrs.add(paramName & ": " & nimType)
     of pinQuery:
-      let defaultVal = paramDefaultValue(param)
-      if defaultVal.len > 0:
-        paramStrs.add(paramName & ": " & nimType & " = " & defaultVal)
-      elif paramHasEnum(param):
-        paramStrs.add(paramName & ": " & enumParamNimType(param, tag) & " = {}")
+      if paramHasEnum(param):
+        let enumType = enumParamNimType(param, tag)
+        let defaultVal = paramDefaultValue(param)
+        if defaultVal.len > 0:
+          let raw = param.schema.default.getStr
+          let variant = sanitizeIdent(toCamelCase(param.name) & toPascalCase(raw))
+          paramStrs.add(paramName & ": " & enumType & " = " & variant)
+        else:
+          paramStrs.add(paramName & ": " & enumType)
       elif paramIsSimpleArray(param):
         paramStrs.add(paramName & ": seq[string] = @[]")
       elif param.required:
         paramStrs.add(paramName & ": " & nimType)
       else:
-        paramStrs.add(paramName & ": " & nimType & " = default(" & nimType & ")")
+        let defaultVal = paramDefaultValue(param)
+        if defaultVal.len > 0:
+          paramStrs.add(paramName & ": " & nimType & " = " & defaultVal)
+        else:
+          paramStrs.add(paramName & ": " & nimType & " = default(" & nimType & ")")
     else: discard
 
   if hasBody:
@@ -682,7 +689,9 @@ proc genEndpointProc(httpMeth: string; path: string; operation: Operation;
     result &= "  var q = initOrderedTable[string, string]()\n"
     for param in queryParams:
       let paramName = paramIdent(param.name)
-      if paramHasEnum(param) or paramIsSimpleArray(param):
+      if paramHasEnum(param):
+        result &= &"  q[\"{param.name}\"] = ${paramName}\n"
+      elif paramIsSimpleArray(param):
         result &= &"  for v in {paramName}: q[\"{param.name}\"] = $v\n"
       else:
         result &= &"  q[\"{param.name}\"] = ${paramName}\n"

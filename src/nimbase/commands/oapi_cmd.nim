@@ -130,16 +130,15 @@ proc shortDescription(desc: string): string =
   ## A short, single-line package description from the spec's `info.description`
   ## (first non-heading sentence, markdown stripped, capped), falling back to a
   ## generic label.
-  if desc.len == 0:
-    return "Awesome Nim client"
+  result = "Awesome Nim client"
+  if desc.len == 0: return # result
   for line in desc.split('\n'):
     let stripped = line.strip
     if stripped.len == 0 or stripped.startsWith("#"):
       continue
     result = stripped
     break
-  if result.len == 0:
-    return "Awesome Nim client"
+  if result.len == 0: return # result
   result = result.replace("`", "").replace("**", "")
   let period = result.find(". ")
   if period > 0:
@@ -152,8 +151,6 @@ proc shortDescription(desc: string): string =
     else:
       result = cut & "..."
   result = result.strip
-  if result.len == 0:
-    result = "Awesome Nim client"
 
 proc generateClient(v: Values; specpath, outputDir: string) =
   ## Shared flow for `oapi.gen` and `oapi.gurugen`: resolve settings, load the
@@ -323,16 +320,26 @@ proc oapiDiffCommand*(v: Values) =
     quit(1)
 
 proc oapiInitCommand*(v: Values) =
-  ## Create nimbase.oapi.config.yaml
+  ## Scaffold a package: config, workflows, gitignore, and LICENSE.
+  ## After init, fill the config (set source/generator) and push — the
+  ## nimbase-bot workflow regenerates src/ and tests/ on CI.
+  if not dirExists(".github/workflows"):
+    createDir(".github/workflows")
+
   let configPath = defaultConfigFile
   if fileExists(configPath):
     displayWarning("Config file already exists: " & configPath)
     if not promptConfirm("Overwrite existing file?"):
       displayInfo("Aborted")
       return
-  let content = dumpDefaultSettings()
-  writeFile(configPath, content)
-  displaySuccess("Created " & configPath)
+  writeFile(configPath, dumpDefaultSettings())
+  # writeFile(".gitignore", staticRead("openapi/stubs/starter_gitignore"))
+  # writeFile("LICENSE", staticRead("openapi/stubs/starter_license"))
+  # writeFile(".github/workflows/docs.yml", staticRead("openapi/stubs/starter_workflow_docs.yml"))
+  # writeFile(".github/workflows/test.yml", staticRead("openapi/stubs/starter_workflow_test.yml"))
+  # writeFile(".github/workflows/nimbase.yml", staticRead("openapi/stubs/starter_workflow_nimbase.yml"))
+
+  displaySuccess("Scaffolded nimbase.oapi.config.yaml + workflows + LICENSE + .gitignore")
 
 proc oapiMockCommand*(v: Values) =
   ## Command for starting a local mock server from an OpenAPI 3.x spec file or URL

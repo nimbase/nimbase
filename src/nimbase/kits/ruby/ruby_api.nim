@@ -23,20 +23,14 @@
 import strutils
 
 when defined(macosx) or defined(linux):
-  const rubyCFlags = staticExec(
-    "ruby -rrbconfig -e 'puts \"-I#{RbConfig::CONFIG[\"rubyhdrdir\"]} -I#{RbConfig::CONFIG[\"rubyarchhdrdir\"]}\"' 2>/dev/null || " &
-    "pkg-config --cflags --silence-errors ruby-3.2 2>/dev/null || " &
-    "pkg-config --cflags --silence-errors ruby 2>/dev/null").strip()
-  const rubyLFlags = staticExec(
-    "ruby -rrbconfig -e 'puts \"-L#{RbConfig::CONFIG[\"libdir\"]} -l#{RbConfig::CONFIG[\"RUBY_SO_NAME\"]}\"' 2>/dev/null || " &
-    "pkg-config --libs --silence-errors ruby-3.2 2>/dev/null || " &
-    "pkg-config --libs --silence-errors ruby 2>/dev/null").strip()
-  when rubyCFlags.len > 0:
-    {.passC: rubyCFlags.}
-  when rubyLFlags.len > 0:
-    {.passL: rubyLFlags.}
-  when defined(macosx):
-    {.passL: "-Wl,-undefined,dynamic_lookup".}
+  const rubyCFlags = staticExec("ruby -rrbconfig -e 'puts \"-I#{RbConfig::CONFIG[\"rubyhdrdir\"]} -I#{RbConfig::CONFIG[\"rubyarchhdrdir\"]}\"' 2>/dev/null || pkg-config --cflags --silence-errors ruby-3.2 2>/dev/null || pkg-config --cflags --silence-errors ruby 2>/dev/null").strip()
+  const rubyLFlags = staticExec("ruby -rrbconfig -e 'puts \"-L#{RbConfig::CONFIG[\"libdir\"]} -l#{RbConfig::CONFIG[\"RUBY_SO_NAME\"]}\"' 2>/dev/null || pkg-config --libs --silence-errors ruby-3.2 2>/dev/null || pkg-config --libs --silence-errors ruby 2>/dev/null").strip()
+  if rubyCFlags.len > 0:
+    switch("passC", rubyCFlags)
+  if rubyLFlags.len > 0:
+    switch("passL", rubyLFlags)
+when defined(macosx):
+  --passL:"-Wl,-undefined,dynamic_lookup"
 
 # Compiler flags are provided by the host project via pkg-config or tim.nims
 

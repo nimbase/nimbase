@@ -2,7 +2,7 @@ import std/[strutils, sequtils, asyncdispatch, httpclient]
 import unittest
 
 import pkg/openparser/json
-import ../src/openapi/mockserver
+import ../src/nimbase/openapi/mockserver
 
 proc mockSpec(): JsonNode =
   %*{

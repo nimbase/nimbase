@@ -10,9 +10,27 @@
 ## extensions in Nim. Real C functions are imported via `{.importc, header}`
 ## pragmas. C macros are provided as Nim templates with identical names.
 
+import std/strutils
+
 when defined(macosx):
-  {.passC: "-I/opt/local/include/luajit-2.1".}
-  {.passL: "-L/opt/local/lib -lluajit-5.1 -Wl,-undefined,dynamic_lookup".}
+  const luaInc = staticExec("pkg-config --cflags luajit 2>/dev/null || true").strip()
+  const luaLib = staticExec("pkg-config --libs luajit 2>/dev/null || true").strip()
+  when luaInc.len > 0:
+    {.passC: luaInc.}
+    {.passL: luaLib & " -Wl,-undefined,dynamic_lookup".}
+  else:
+    {.passC: "-I/opt/local/include/luajit-2.1".}
+    {.passL: "-L/opt/local/lib -lluajit-5.1 -Wl,-undefined,dynamic_lookup".}
+elif defined(linux):
+  const luaInc = staticExec(
+    "pkg-config --cflags luajit 2>/dev/null || " &
+    "pkg-config --cflags luajit-5.1 2>/dev/null || true").strip()
+  const luaLib = staticExec(
+    "pkg-config --libs luajit 2>/dev/null || " &
+    "pkg-config --libs luajit-5.1 2>/dev/null || true").strip()
+  when luaInc.len > 0:
+    {.passC: luaInc.}
+    {.passL: luaLib.}
 
 type
   lua_State* {.importc: "lua_State", header: "lua.h", incompleteStruct.} = object

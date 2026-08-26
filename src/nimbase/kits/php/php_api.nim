@@ -5,9 +5,21 @@
 #          https://github.com/nimbase/nimbase
 
 # this should be passed to the dev plugin to be included
+import std/strutils
+
 when defined(macosx):
-  {.passC: "-I/opt/local/include/php83/php -I/opt/local/include/php83/php/main -I/opt/local/include/php83/php/TSRM -I/opt/local/include/php83/php/Zend -I/opt/local/include/php83/php/ext -I/opt/local/include/php83/php/ext/date/lib -I/opt/local/include".}
+  const phpInc = staticExec(
+    "php-config --includes 2>/dev/null || " &
+    "php-config83 --includes 2>/dev/null || true").strip()
+  when phpInc.len > 0:
+    {.passC: phpInc.}
+  else:
+    {.passC: "-I/opt/local/include/php83/php -I/opt/local/include/php83/php/main -I/opt/local/include/php83/php/TSRM -I/opt/local/include/php83/php/Zend -I/opt/local/include/php83/php/ext -I/opt/local/include/php83/php/ext/date/lib -I/opt/local/include".}
   {.passL: "-Wl,-undefined,dynamic_lookup".}
+elif defined(linux):
+  const phpInc = staticExec("php-config --includes 2>/dev/null || true").strip()
+  when phpInc.len > 0:
+    {.passC: phpInc.}
 
 ## This module provides the low-level C API bindings to PHP API, which can be used to implement
 ## higher-level wrappers and DSLs for defining PHP extensions in Nim

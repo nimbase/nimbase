@@ -10,9 +10,21 @@
 ## extensions in Nim. Real C functions are imported via `{.importc, header}`
 ## pragmas. C macros are provided as Nim templates with identical names.
 
+import std/strutils
+
 when defined(macosx):
-  {.passC: "-I/opt/local/Library/Frameworks/Python.framework/Versions/3.11/include/python3.11".}
-  {.passL: "-L/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/config-3.11-darwin -lpython3.11 -ldl -framework CoreFoundation -Wl,-undefined,dynamic_lookup".}
+  const pyInc = staticExec("python3-config --includes 2>/dev/null || true").strip()
+  const pyLib = staticExec("python3-config --ldflags --embed 2>/dev/null || true").strip()
+  when pyInc.len > 0:
+    {.passC: pyInc.}
+    {.passL: pyLib & " -Wl,-undefined,dynamic_lookup".}
+  else:
+    {.passC: "-I/opt/local/Library/Frameworks/Python.framework/Versions/3.11/include/python3.11".}
+    {.passL: "-L/opt/local/Library/Frameworks/Python.framework/Versions/3.11/lib/python3.11/config-3.11-darwin -lpython3.11 -ldl -framework CoreFoundation -Wl,-undefined,dynamic_lookup".}
+elif defined(linux):
+  const pyInc = staticExec("python3-config --includes 2>/dev/null || true").strip()
+  when pyInc.len > 0:
+    {.passC: pyInc.}
 
 type
   PyObject* {.importc: "PyObject", header: "Python.h", incompleteStruct.} = object

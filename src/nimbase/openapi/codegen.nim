@@ -295,10 +295,27 @@ proc paramIsSimpleArray(param: Parameter): bool =
 proc enumParamNimType(param: Parameter; tag: string): string =
   safeIdent(pascalSingular(tag) & toPascalCase(param.name) & "Option")
 
-proc enumParamDefault(param: Parameter; tag: string): string =
-  if paramHasEnum(param): "{}"
-  elif paramIsSimpleArray(param): "@[]"
-  else: ""
+proc enumParamFirstVariant(param: Parameter): string =
+  ## Nim identifier of the first declared variant for an enum query param,
+  ## mirroring the naming in genEnumForQueryParam.
+  if paramHasEnum(param):
+    return sanitizeIdent(toCamelCase(param.name) & toPascalCase(param.schema.enumValues[0]))
+
+proc canonicalEnumParams(tag: string;
+    ops: seq[tuple[path: string, meth: string, operation: Operation]]): Table[string, Parameter] =
+  ## First-seen query param per emitted enum type name within a module tag,
+  ## mirroring the first-wins dedup in genEndpointFile. Samples and defaults
+  ## must derive variants from these: a later same-named param may declare
+  ## different values that were never emitted, so its own values would resolve
+  ## to undeclared identifiers.
+  result = initTable[string, Parameter]()
+  for (_, _, operation) in ops:
+    if operation.isNil: continue
+    for param in operation.parameters:
+      if param != nil and param.kind == pinQuery and paramHasEnum(param):
+        let enumName = enumParamNimType(param, tag)
+        if enumName notin result:
+          result[enumName] = param
 
 proc paramDefaultValue(param: Parameter): string =
   if param.schema.isNil or param.schema.default.isNil or param.schema.default.kind == JNull:
@@ -508,7 +525,7 @@ proc genRenamesCode(schemas: OrderedTableRef[string, Schema]): string =
         renames.add((propName, nimName))
     if renames.len == 0:
       continue
-    let typeName = typeNameOf(typeNames, schemaName)
+    let typeName = "types." & typeNameOf(typeNames, schemaName)
     result &= "proc renameHook*(v: " & typeName & ", fieldName: var string) {.inline.} =\n"
     var first = true
     for (wire, nim) in renames:
@@ -565,7 +582,8 @@ proc genEndpointProc(httpMeth: string; path: string; operation: Operation;
   schemas: OrderedTableRef[string, Schema];
   typeNames: Table[string, string];
   pkgIdent: string; tag: string;
-  skipPrefixPath: sink string = ""; stripPrefixModule: sink string = ""): string =
+  skipPrefixPath: sink string = ""; stripPrefixModule: sink string = "";
+  canonEnums: Table[string, Parameter] = initTable[string, Parameter]()): string =
   let ep = genEndpoint(path, skipPrefixPath, stripPrefixModule)
   let httpMethod = httpMeth.toLowerAscii
   let procName = httpMethod & ep.ident
@@ -632,11 +650,14 @@ proc genEndpointProc(httpMeth: string; path: string; operation: Operation;
     of pinQuery:
       if paramHasEnum(param):
         let enumType = enumParamNimType(param, tag)
+        let canon = if enumType in canonEnums: canonEnums[enumType] else: param
         let defaultVal = paramDefaultValue(param)
-        if defaultVal.len > 0:
+        if defaultVal.len > 0 and param.schema.default.getStr in canon.schema.enumValues:
           let raw = param.schema.default.getStr
-          let variant = sanitizeIdent(toCamelCase(param.name) & toPascalCase(raw))
+          let variant = sanitizeIdent(toCamelCase(canon.name) & toPascalCase(raw))
           paramStrs.add(paramName & ": " & enumType & " = " & variant)
+        elif not param.required:
+          paramStrs.add(paramName & ": " & enumType & " = " & enumParamFirstVariant(canon))
         else:
           paramStrs.add(paramName & ": " & enumType)
       elif paramIsSimpleArray(param):
@@ -780,7 +801,7 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
   for (path, meth, operation) in ops:
     for param in operation.parameters:
       if param != nil and param.kind == pinQuery and paramHasEnum(param):
-        let enumName = pascalSingular(tag) & toPascalCase(param.name) & "Option"
+        let enumName = enumParamNimType(param, tag)
         if enumName notin emittedEnums:
           emittedEnums.add(enumName)
           let enumDef = genEnumForQueryParam(param, tag)
@@ -796,8 +817,9 @@ proc genEndpointFile*(tag: string, ops: seq[tuple[path: string, meth: string, op
   if hasTypes:
     body &= "\n"
 
+  let canonEnums = canonicalEnumParams(tag, ops)
   for (path, meth, operation) in ops:
-    body &= genEndpointProc(meth, path, operation, schemas, typeNames, pkgIdent, tag, skipPrefixPath, stripPrefixModule)
+    body &= genEndpointProc(meth, path, operation, schemas, typeNames, pkgIdent, tag, skipPrefixPath, stripPrefixModule, canonEnums)
 
   var stdImports: seq[string]
   if body.contains("fmt\""):
@@ -1073,11 +1095,14 @@ proc resolveParamTarget(param: Parameter;
 
 proc sampleParamArg(param: Parameter; tag: string;
     schemas: OrderedTableRef[string, Schema];
-    typeNames: Table[string, string]): string =
+    typeNames: Table[string, string];
+    canonEnums: Table[string, Parameter] = initTable[string, Parameter]()): string =
   ## A sample call argument for a path/query parameter, or "" if unsampleable.
   ## Arguments must line up positionally with the generated proc signature.
   if param.kind == pinQuery and paramHasEnum(param):
-    return "{}"
+    let enumType = enumParamNimType(param, tag)
+    let canon = if enumType in canonEnums: canonEnums[enumType] else: param
+    return enumParamFirstVariant(canon)
   let target = resolveParamTarget(param, schemas)
   if target.isNil:
     return
@@ -1152,6 +1177,7 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
 
   body &= &"suite \"{tag} endpoints\":\n"
   var emitted = 0
+  let canonEnums = canonicalEnumParams(tag, ops)
   for (path, meth, operation) in ops:
     let ep = genEndpoint(path, gen.skipPrefixPath, gen.stripPrefixModule)
     let procName = meth.toLowerAscii & ep.ident
@@ -1161,7 +1187,7 @@ proc genModuleTest(tag: string; ops: seq[tuple[path: string, meth: string, opera
       if param.isNil: continue
       case param.kind
       of pinPath, pinQuery:
-        let sample = sampleParamArg(param, tag, gen.schemas, typeNames)
+        let sample = sampleParamArg(param, tag, gen.schemas, typeNames, canonEnums)
         if sample.len == 0:
           skip = true
           break
@@ -1257,6 +1283,7 @@ proc sampleableCall(gen: Generator;
   ## fixture builders (`new<Type>()`) — those only exist in the test harness.
   ## Returns "" when none exist.
   for tag, ops in groups.pairs:
+    let canonEnums = canonicalEnumParams(tag, ops)
     for (path, meth, operation) in ops:
       let ep = genEndpoint(path, gen.skipPrefixPath, gen.stripPrefixModule)
       let procName = meth.toLowerAscii & ep.ident
@@ -1266,7 +1293,7 @@ proc sampleableCall(gen: Generator;
         if param.isNil: continue
         case param.kind
         of pinPath, pinQuery:
-          let sample = sampleParamArg(param, tag, gen.schemas, typeNames)
+          let sample = sampleParamArg(param, tag, gen.schemas, typeNames, canonEnums)
           if sample.len == 0 or sample.startsWith("new"):
             skip = true
             break
